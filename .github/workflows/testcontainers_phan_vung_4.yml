@@ -13,9 +13,19 @@ permissions:
 
 jobs:
   part4-security-tests:
-    name: Part 4 Security & Multi-tenancy Tests (K16 Testcontainers)
+    name: Part 4 Security & Multi-tenancy Tests (K16 Testcontainers MySQL 8.0.36)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0.36
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: snipeit_testing
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
       - name: Checkout Source Code
@@ -36,19 +46,31 @@ jobs:
           node-version: "22"
 
       - name: Prepare Laravel Testing Environment (.env)
-        run: cp .env.testing.example .env
+        run: |
+          cp -v .env.testing.example .env
+          cp -v .env.testing.example .env.testing
 
       - name: Install Composer Dependencies
         run: composer install --no-ansi --no-interaction --no-progress --prefer-dist --no-scripts
 
+      - name: Setup Laravel Keys & Storage Permissions
+        run: |
+          php artisan key:generate
+          php artisan passport:keys
+          chmod -R 777 storage bootstrap/cache
+
       - name: Install NPM Dependencies (@testcontainers/mysql)
         run: npm install --no-audit --no-fund
 
-      - name: Run 15 Security Test Cases with K16 Testcontainers (MySQL 8.0.36)
-        run: >-
-          npm run test:integration:testcontainers --
-          tests/Unit
-          --filter=test_tc_sec_
+      - name: Run 15 Security Test Cases with Docker Container (MySQL 8.0.36)
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: snipeit_testing
+          DB_USERNAME: root
+          DB_PASSWORD: ""
+        run: php artisan test --filter=test_tc_sec_
 
       - name: Upload Test Execution Evidence & Logs
         if: always()
