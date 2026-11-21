@@ -351,4 +351,42 @@ class UserTest extends TestCase
         $this->assertNull($log->deleted_at);
         $this->assertEquals(1, Actionlog::where('id', $log->id)->count());
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-01
+     * Tên kịch bản: Quyền lực tối cao toàn quyền của Superuser (God Mode Bypass)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Root Authority Verification / Positive Baseline
+     * Mục tiêu an ninh: Xác minh tài khoản có permissions->superuser = '1' luôn được cấp phép
+     * truy cập vào 100% chức năng nhạy cảm mà không bị chặn bởi bất kỳ phân quyền nhóm nào.
+     */
+    public function test_tc_sec_01_superuser_has_unconditional_access_to_all_sections(): void
+    {
+        // 1. Arrange: Chuẩn bị tài khoản Superuser và danh sách 10 phân vùng nhạy cảm
+        $superUser = User::factory()->superuser()->create();
+        $sectionsToTest = [
+            'admin',
+            'users.view',
+            'users.create',
+            'users.edit',
+            'users.delete',
+            'assets.view',
+            'assets.checkout',
+            'assets.checkin',
+            'reports.view',
+            'settings.general',
+        ];
+
+        // 2. Act & Assert: Duyệt qua từng phân vùng để khẳng định quyền tối thượng
+        foreach ($sectionsToTest as $section) {
+            $this->assertTrue(
+                $superUser->hasAccess($section),
+                "LỖI AN NINH: Superuser bị chặn truy cập trái phép tại phân vùng: {$section}"
+            );
+        }
+
+        // Khẳng định cờ isSuperUser hoạt động chính xác
+        $this->assertTrue($superUser->isSuperUser(), 'LỖI AN NINH: Cờ isSuperUser không nhận diện được Superuser!');
+    }
 }
+
