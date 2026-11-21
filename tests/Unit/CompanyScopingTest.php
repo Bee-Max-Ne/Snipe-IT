@@ -461,6 +461,61 @@ class CompanyScopingTest extends TestCase
         $this->assertCannotSee($userInB);
     }
 
+    /**
+     * Mã kiểm thử: TC-SEC-13
+     * Tên kịch bản: Chặn hành vi bàn giao tài sản xuyên công ty (Cross-Company Checkout Prevention)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Business Rule & Multi-tenant Integrity Verification
+     * Mục tiêu an ninh: Đảm bảo tài sản thuộc quyền sở hữu của Công ty A tuyệt đối không thể
+     * bàn giao (checkout) cho nhân viên thuộc Công ty B, bảo toàn tài sản doanh nghiệp.
+     */
+    public function test_tc_sec_13_cross_company_asset_checkout_strictly_prevented(): void
+    {
+        // 1. Arrange: Khởi tạo 2 công ty, tài sản thuộc Cty A, nhân sự Cty A, Cty B và nhân sự Floater
+        [$companyA, $companyB] = Company::factory()->count(2)->create();
+
+        $assetA = Asset::factory()->for($companyA)->create();
+        $userA = $companyA->users()->save(User::factory()->make());
+        $userB = $companyB->users()->save(User::factory()->make());
+        $floaterUser = User::factory()->withoutCompany()->create();
+
+        // 2. Act & Assert ở chế độ nghiêm ngặt (Strict Mode):
+        $this->settings->enableMultipleFullCompanySupport();
+
+        // A. Chặn checkout tài sản Công ty A cho nhân sự Công ty B
+        $this->assertFalse(
+            $assetA->canCheckoutTo($userB),
+            'LỖI AN NINH: Cho phép bàn giao tài sản Công ty A cho nhân sự Công ty B!'
+        );
+
+        // B. Cho phép checkout tài sản Công ty A cho nhân sự cùng thuộc Công ty A
+        $this->assertTrue(
+            $assetA->canCheckoutTo($userA),
+            'LỖI: Bị chặn bàn giao tài sản nội bộ trong cùng Công ty A!'
+        );
+
+        // C. Ở chế độ Strict Mode, nhân sự tự do (floater) không được nhận tài sản có công ty
+        $this->assertFalse(
+            $assetA->canCheckoutTo($floaterUser),
+            'LỖI AN NINH: Chế độ Strict cho phép bàn giao tài sản cho nhân sự Floater!'
+        );
+
+        // 3. Act & Assert ở chế độ Floater Mode:
+        $this->settings->enableFloaterMode();
+
+        // D. Kể cả khi bật Floater Mode, tuyệt đối VẪN PHẢI CHẶN checkout chéo cho Công ty B
+        $this->assertFalse(
+            $assetA->canCheckoutTo($userB),
+            'LỖI AN NINH: Floater Mode để lọt lỗi checkout chéo công ty cho Công ty B!'
+        );
+
+        // E. Ở Floater Mode, nhân sự tự do (floater) được phép nhận tài sản
+        $this->assertTrue(
+            $assetA->canCheckoutTo($floaterUser),
+            'LỖI: Nhân sự Floater bị chặn nhận tài sản trong chế độ Floater Mode!'
+        );
+    }
+
     private function assertCanSee(Model $model)
     {
         $this->assertTrue(
