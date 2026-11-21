@@ -2,10 +2,13 @@
 
 namespace Tests\Unit;
 
+use App\Http\Requests\DeleteUserRequest;
 use App\Models\Actionlog;
 use App\Models\Group;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
 use Tests\TestCase;
 
 class UserTest extends TestCase
@@ -647,6 +650,67 @@ class UserTest extends TestCase
             $superUser->mayImpersonate($activeNormalUser),
             'LỖI: SuperUser hợp lệ bị chặn mạo danh tài khoản người dùng thường đang hoạt động!'
         );
+    }
+
+    /**
+     * Mã kiểm thử: TC-SEC-09
+     * Tên kịch bản: Chống tự xóa bản thân ngăn chặn sập quyền quản trị (Self-Deletion Prevention)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Integrity / Negative Testing
+     * Mục tiêu an ninh: Ngăn chặn Quản trị viên vô tình hoặc cố ý xóa chính tài khoản mình đang đăng nhập,
+     * gây sập phiên làm việc và mất tài khoản quản trị hệ thống.
+     */
+    public function test_tc_sec_09_admin_cannot_delete_themselves(): void
+    {
+        // 1. Arrange: Chuẩn bị Admin có toàn quyền xóa người dùng và TargetUser khác
+        $admin = User::factory()->superuser()->create();
+        $targetUser = User::factory()->create();
+        Auth::login($admin);
+
+        // 2. Act & Assert:
+        // A. Kiểm thử tầng FormRequest Validation Rule (DeleteUserRequest):
+        $request = new DeleteUserRequest();
+        $rules = $request->rules();
+
+        // Thử validate yêu cầu xóa chính bản thân admin đang đăng nhập
+        $selfDeleteValidator = Validator::make([
+            'user' => $admin->id,
+            'managed_users' => 0,
+            'managed_locations' => 0,
+            'assigned_assets' => 0,
+            'assigned_licenses' => 0,
+            'assigned_accessories' => 0,
+            'deleted_at' => null,
+        ], $rules, $request->messages());
+
+        $this->assertTrue(
+            $selfDeleteValidator->fails(),
+            'LỖI AN NINH: Validator cho phép xóa chính tài khoản đang đăng nhập!'
+        );
+        $this->assertTrue(
+            $selfDeleteValidator->errors()->has('user'),
+            'LỖI AN NINH: Validator không sinh lỗi trường "user" khi tự xóa bản thân!'
+        );
+
+        // Thử validate yêu cầu xóa người dùng mục tiêu khác (hợp lệ)
+        $validDeleteValidator = Validator::make([
+            'user' => $targetUser->id,
+            'managed_users' => 0,
+            'managed_locations' => 0,
+            'assigned_assets' => 0,
+            'assigned_licenses' => 0,
+            'assigned_accessories' => 0,
+            'deleted_at' => null,
+        ], $rules, $request->messages());
+
+        $this->assertFalse(
+            $validDeleteValidator->fails(),
+            'LỖI: Validator từ chối xóa tài khoản hợp lệ khác!'
+        );
+
+        // B. Khẳng định tài khoản Admin vẫn toàn vẹn trong CSDL
+        $this->assertNull($admin->fresh()->deleted_at, 'LỖI AN NINH: Tài khoản Admin đã bị gắn cờ xóa mềm!');
+        $this->assertModelExists($admin);
     }
 }
 
