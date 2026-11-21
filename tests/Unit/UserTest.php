@@ -500,7 +500,32 @@ class UserTest extends TestCase
         // Quyền không thuộc nhóm nào => bị từ chối
         $this->assertFalse($user->hasAccess('users.delete'), 'LỖI AN NINH: User tự ý có quyền ngoài các nhóm được gán!');
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-05
+     * Tên kịch bản: Cơ chế mặc định từ chối khi không có quyền hạn (Default Deny Baseline)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Phòng thủ chiều sâu (Deny by Default Verification)
+     * Mục tiêu an ninh: Chứng minh tài khoản người dùng mới tạo (chưa gán quyền, chưa thuộc nhóm)
+     * tuyệt đối bị chặn toàn bộ, không có bất kỳ quyền quản trị hay thao tác dữ liệu nào.
+     */
+    public function test_tc_sec_05_default_deny_when_no_permissions_assigned(): void
+    {
+        // 1. Arrange: Tạo User hoàn toàn không có quyền hạn và không có nhóm
+        $userEmptyStr = User::factory()->create(['permissions' => '']);
+        $userEmptyJson = User::factory()->create(['permissions' => '{}']);
+
+        // 2. Act & Assert: Khẳng định mọi hàm kiểm tra quyền đều trả về false
+        foreach ([$userEmptyStr, $userEmptyJson] as $user) {
+            $this->assertFalse($user->hasAccess('admin'), 'LỖI AN NINH: User rỗng quyền có quyền admin!');
+            $this->assertFalse($user->hasAccess('users.view'), 'LỖI AN NINH: User rỗng quyền có quyền users.view!');
+            $this->assertFalse($user->hasAccess('users.create'), 'LỖI AN NINH: User rỗng quyền có quyền users.create!');
+            $this->assertFalse($user->hasAccess('assets.checkout'), 'LỖI AN NINH: User rỗng quyền có quyền assets.checkout!');
+            $this->assertFalse($user->isSuperUser(), 'LỖI AN NINH: User rỗng quyền là SuperUser!');
+        }
+    }
 }
+
 
 
 
