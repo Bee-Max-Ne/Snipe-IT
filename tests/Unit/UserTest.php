@@ -549,6 +549,45 @@ class UserTest extends TestCase
         $this->assertFalse(Gate::forUser($regularUser)->allows('create', User::class), 'LỖI AN NINH: RegularUser tự ý tạo được người dùng!');
         $this->assertFalse(Gate::forUser($regularUser)->allows('delete', $targetUser), 'LỖI AN NINH: RegularUser tự ý xóa được người dùng khác!');
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-07
+     * Tên kịch bản: Bảo vệ trường dữ liệu xác thực của SuperAdmin (canEditAuthFields)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Anti-Tampering / Privilege Escalation Prevention
+     * Mục tiêu an ninh: Đảm bảo Quản trị viên cấp dưới (Sub-admin có quyền users.edit hoặc admin)
+     * không thể thay đổi mật khẩu, email hoặc tước quyền của SuperAdmin tối cao.
+     */
+    public function test_tc_sec_07_subadmin_cannot_modify_superuser_auth_fields(): void
+    {
+        // 1. Arrange: Chuẩn bị SuperAdmin mục tiêu, Sub-admin quyền users.edit, và Admin thông thường
+        $targetSuperUser = User::factory()->superuser()->create();
+        $subAdmin = User::factory()->create([
+            'permissions' => json_encode(['users.edit' => '1']),
+        ]);
+        $regularAdmin = User::factory()->create([
+            'permissions' => json_encode(['admin' => '1', 'users.edit' => '1']),
+        ]);
+
+        // 2. Act & Assert:
+        // Sub-admin (chỉ có quyền users.edit) không được phép sửa auth fields của SuperAdmin
+        $this->assertFalse(
+            Gate::forUser($subAdmin)->allows('canEditAuthFields', $targetSuperUser),
+            'LỖI AN NINH: Sub-admin có thể sửa trường xác thực của SuperAdmin!'
+        );
+
+        // Admin thông thường (admin = 1) cũng không được phép sửa auth fields của SuperAdmin
+        $this->assertFalse(
+            Gate::forUser($regularAdmin)->allows('canEditAuthFields', $targetSuperUser),
+            'LỖI AN NINH: Regular Admin có thể sửa trường xác thực của SuperAdmin!'
+        );
+
+        // SuperAdmin thì có toàn quyền chỉnh sửa trường xác thực của bất kỳ ai (kể cả SubAdmin)
+        $this->assertTrue(
+            Gate::forUser($targetSuperUser)->allows('canEditAuthFields', $subAdmin),
+            'LỖI: SuperAdmin bị chặn quyền sửa trường xác thực của SubAdmin!'
+        );
+    }
 }
 
 
