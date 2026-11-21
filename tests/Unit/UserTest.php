@@ -751,6 +751,67 @@ class UserTest extends TestCase
             'LỖI: SuperUser bị chặn quyền cấp Floater status!'
         );
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-15
+     * Tên kịch bản: Tính bất biến và bảo toàn dấu vết nhật ký kiểm toán (Actionlog Non-Repudiation)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Audit Trail Integrity / Forensic Evidence Preservation
+     * Mục tiêu an ninh: Đảm bảo mọi hành vi thay đổi nhân sự và thao tác an ninh đều được ghi vết
+     * vĩnh viễn vào bảng action_logs, không bị mất dấu vết kể cả khi đối tượng người dùng bị xóa,
+     * đáp ứng tiêu chuẩn kiểm toán an ninh SOC2 / ISO 27001.
+     */
+    public function test_tc_sec_15_action_log_immutability_and_audit_trail_preservation(): void
+    {
+        // 1. Arrange: Chuẩn bị Quản trị viên thực hiện hành vi và Người dùng mục tiêu
+        $adminActor = User::factory()->superuser()->create();
+        $targetUser = User::factory()->create();
+
+        // 2. Act: Ghi nhận sự kiện kiểm toán thay đổi quyền hạn / tạo nhân sự
+        $log = new Actionlog();
+        $log->item_type = User::class;
+        $log->item_id = $targetUser->id;
+        $log->created_by = $adminActor->id;
+        $log->action_type = 'create';
+        $log->note = 'Tạo người dùng và cấp quyền kiểm toán an ninh';
+        $log->save();
+
+        // 3. Assert:
+        // A. Bản ghi nhật ký kiểm toán tồn tại tức thì trong CSDL
+        $this->assertDatabaseHas('action_logs', [
+            'id' => $log->id,
+            'item_type' => User::class,
+            'item_id' => $targetUser->id,
+            'created_by' => $adminActor->id,
+            'action_type' => 'create',
+        ]);
+
+        // B. Bản ghi mới tạo hoàn toàn nguyên vẹn, không bị xóa mềm
+        $this->assertNull(
+            $log->fresh()->deleted_at,
+            'LỖI AN NINH: Bản ghi nhật ký kiểm toán mới tạo đã bị gắn cờ xóa mềm!'
+        );
+
+        // C. Khẳng định mối quan hệ kiểm toán (Audit Trail Relation) trỏ chính xác về người thực hiện
+        $this->assertEquals(
+            $adminActor->id,
+            $log->fresh()->adminuser->id,
+            'LỖI: Nhật ký kiểm toán không liên kết đúng người thực hiện hành vi!'
+        );
+
+        // D. Kịch bản công kích / Xóa bỏ đối tượng mục tiêu:
+        // Ngay cả khi người dùng mục tiêu bị xóa, bản ghi Actionlog VẪN PHẢI TỒN TẠI NGUYÊN VẸN trong DB
+        $targetUser->delete();
+
+        $this->assertDatabaseHas('action_logs', [
+            'id' => $log->id,
+            'action_type' => 'create',
+        ]);
+        $this->assertNotNull(
+            Actionlog::find($log->id),
+            'LỖI AN NINH: Nhật ký kiểm toán bị biến mất khi đối tượng mục tiêu bị xóa!'
+        );
+    }
 }
 
 
