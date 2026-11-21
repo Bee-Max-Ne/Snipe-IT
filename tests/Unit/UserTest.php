@@ -588,6 +588,66 @@ class UserTest extends TestCase
             'LỖI: SuperAdmin bị chặn quyền sửa trường xác thực của SubAdmin!'
         );
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-08
+     * Tên kịch bản: Thiết lập ranh giới an toàn cho tính năng mạo danh (mayImpersonate Guard Clauses)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Security Guard / Adversarial Testing (Ngăn ngừa DEFECT-SEC-04)
+     * Mục tiêu an ninh: Ngăn chặn triệt để các hành vi mạo danh nguy hiểm: Admin mạo danh SuperAdmin,
+     * mạo danh chính mình, mạo danh tài khoản bị khóa hoặc đã xóa mềm, và người dùng thường cố ý mạo danh.
+     */
+    public function test_tc_sec_08_impersonation_boundaries_enforced(): void
+    {
+        // 1. Arrange: Khởi tạo các vai trò người dùng kiểm thử
+        $superUser = User::factory()->superuser()->create();
+        config(['app.user_impersonation_usernames' => [$superUser->username]]);
+
+        $targetSuperUser = User::factory()->superuser()->create();
+        $deactivatedUser = User::factory()->create(['activated' => 0]);
+        $trashedUser = User::factory()->create(['activated' => 1]);
+        $trashedUser->delete(); // Xóa mềm để có deleted_at khác null
+
+        $activeNormalUser = User::factory()->create(['activated' => 1]);
+        $regularUser = User::factory()->create();
+
+        // 2. Act & Assert: Kiểm thử các ranh giới an toàn (Guard Clauses)
+        // Ranh giới 1: Chặn tuyệt đối hành vi tự mạo danh chính mình
+        $this->assertFalse(
+            $superUser->mayImpersonate($superUser),
+            'LỖI AN NINH: Cho phép mạo danh chính tài khoản đang đăng nhập!'
+        );
+
+        // Ranh giới 2: Chặn SuperUser mạo danh một SuperUser khác (ngăn tẩu tán trách nhiệm kiểm toán)
+        $this->assertFalse(
+            $superUser->mayImpersonate($targetSuperUser),
+            'LỖI AN NINH: Cho phép SuperUser mạo danh một SuperUser khác!'
+        );
+
+        // Ranh giới 3: Chặn mạo danh tài khoản đã bị vô hiệu hóa (activated = 0)
+        $this->assertFalse(
+            $superUser->mayImpersonate($deactivatedUser),
+            'LỖI AN NINH: Cho phép mạo danh tài khoản đã bị khóa/vô hiệu hóa!'
+        );
+
+        // Ranh giới 4: Chặn mạo danh tài khoản đã bị xóa mềm (trashed / deleted_at != null)
+        $this->assertFalse(
+            $superUser->mayImpersonate($trashedUser),
+            'LỖI AN NINH: Cho phép mạo danh tài khoản đã bị xóa vào thùng rác!'
+        );
+
+        // Ranh giới 5: Người dùng thường tuyệt đối không được phép mạo danh bất kỳ ai
+        $this->assertFalse(
+            $regularUser->mayImpersonate($activeNormalUser),
+            'LỖI AN NINH: Người dùng thường không có quyền mà vẫn mạo danh được người khác!'
+        );
+
+        // Khẳng định đường hợp lệ (Happy path): SuperUser được phép mạo danh User thường đang kích hoạt
+        $this->assertTrue(
+            $superUser->mayImpersonate($activeNormalUser),
+            'LỖI: SuperUser hợp lệ bị chặn mạo danh tài khoản người dùng thường đang hoạt động!'
+        );
+    }
 }
 
 
