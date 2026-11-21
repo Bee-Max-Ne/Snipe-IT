@@ -425,6 +425,42 @@ class CompanyScopingTest extends TestCase
         $this->assertCannotSee($userB);
     }
 
+    /**
+     * Mã kiểm thử: TC-SEC-12
+     * Tên kịch bản: Ngăn chặn rò rỉ dữ liệu người dùng qua subquery khi bật floater mode (DEFECT-SEC-01)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Adversarial Scoping Testing / Regression Defense (Khóa chặt ticket 56305 / DEFECT-SEC-01)
+     * Mục tiêu an ninh: Khi bật null_company_is_floater, đảm bảo subquery kiểm tra pivot company_user
+     * không bị áp đặt CompanyableScope đệ quy khiến người dùng thuộc Công ty B bị rò rỉ sang Công ty A.
+     */
+    public function test_tc_sec_12_company_scoped_user_cannot_see_other_companies_users_in_floater_mode(): void
+    {
+        // 1. Arrange: Khởi tạo 2 công ty riêng biệt, nhân sự Cty A, nhân sự Cty B và nhân sự tự do (floater)
+        [$companyA, $companyB] = Company::factory()->count(2)->create();
+
+        $callerA = $companyA->users()->save(User::factory()->make());
+        $peerInA = $companyA->users()->save(User::factory()->make());
+        $userInB = $companyB->users()->save(User::factory()->make());
+        $floaterUser = User::factory()->withoutCompany()->create();
+
+        // Kích hoạt chế độ FMCS kèm Floater Mode
+        $this->settings->enableFloaterMode();
+
+        // 2. Act: Đăng nhập dưới quyền User của Công ty A và xóa cache công ty
+        $this->actingAs($callerA);
+        Company::flushCompanyIdsCache();
+
+        // 3. Assert:
+        // A. Nhìn thấy đồng nghiệp cùng Công ty A
+        $this->assertCanSee($peerInA);
+
+        // B. Nhìn thấy nhân sự Floater tự do (không thuộc công ty nào)
+        $this->assertCanSee($floaterUser);
+
+        // C. Tuyệt đối KHÔNG nhìn thấy nhân sự thuộc Công ty B (ngăn rò rỉ chéo tenant)
+        $this->assertCannotSee($userInB);
+    }
+
     private function assertCanSee(Model $model)
     {
         $this->assertTrue(
