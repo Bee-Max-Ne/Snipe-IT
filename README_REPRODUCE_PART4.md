@@ -65,7 +65,7 @@ php artisan test --filter=test_tc_sec_
 ### Cách 3: Chạy trên CSDL thực nghiệm K16 Testcontainers (MySQL 8.0.36)
 Lệnh này sẽ tự động tải image Docker `mysql:8.0.36`, khởi tạo container độc lập ngẫu nhiên, chạy toàn bộ 15 testcase và tự động hủy container sau khi hoàn tất:
 ```bash
-npm run test:integration:testcontainers -- tests/Unit/UserTest.php tests/Unit/CompanyScopingTest.php --filter=test_tc_sec_
+npm run test:integration:testcontainers -- --filter=test_tc_sec_
 ```
 
 ### Cách 4: Đóng gói và thu thập bằng chứng kiểm thử (Artifact Packaging)

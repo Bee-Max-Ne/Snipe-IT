@@ -47,8 +47,6 @@ jobs:
       - name: Run 15 Security Test Cases with K16 Testcontainers (MySQL 8.0.36)
         run: >-
           npm run test:integration:testcontainers --
-          tests/Unit/UserTest.php
-          tests/Unit/CompanyScopingTest.php
           --filter=test_tc_sec_
 
       - name: Upload Test Execution Evidence & Logs
