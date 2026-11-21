@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Http\Requests\DeleteUserRequest;
 use App\Models\Actionlog;
+use App\Models\Company;
 use App\Models\Group;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -711,6 +712,44 @@ class UserTest extends TestCase
         // B. Khẳng định tài khoản Admin vẫn toàn vẹn trong CSDL
         $this->assertNull($admin->fresh()->deleted_at, 'LỖI AN NINH: Tài khoản Admin đã bị gắn cờ xóa mềm!');
         $this->assertModelExists($admin);
+    }
+
+    /**
+     * Mã kiểm thử: TC-SEC-10
+     * Tên kịch bản: Chống leo thang đặc quyền gán quyền Floater toàn tập đoàn (canGrantFloaterStatus)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Multi-tenant Security / Privilege Escalation Prevention (Ngăn ngừa DEFECT-SEC-02)
+     * Mục tiêu an ninh: Ngăn chặn Quản trị viên chi nhánh tạo người dùng mới không gắn công ty
+     * nhằm biến thành tài khoản "Floater" thấy toàn bộ tập đoàn. Chỉ SuperUser hoặc nhân sự cấp tập đoàn mới có quyền này.
+     */
+    public function test_tc_sec_10_companied_admin_cannot_grant_floater_status(): void
+    {
+        // 1. Arrange: Kích hoạt chế độ FMCS Floater Mode và khởi tạo các đối tượng
+        $this->settings->enableFloaterMode();
+
+        $company = Company::factory()->create();
+
+        // Quản trị viên chi nhánh được gán trực tiếp vào Company A
+        $companyAdmin = User::factory()->create([
+            'permissions' => json_encode(['admin' => '1', 'users.create' => '1']),
+        ]);
+        $companyAdmin->companies()->attach($company);
+
+        // SuperUser toàn quyền hệ thống
+        $superUser = User::factory()->superuser()->create();
+
+        // 2. Act & Assert:
+        // Quản trị viên thuộc chi nhánh cụ thể tuyệt đối không được phép gán floater status
+        $this->assertFalse(
+            $companyAdmin->canGrantFloaterStatus(),
+            'LỖI AN NINH: Quản trị viên chi nhánh tự ý cấp quyền Floater toàn tập đoàn!'
+        );
+
+        // SuperUser tối cao luôn có quyền cấp Floater status
+        $this->assertTrue(
+            $superUser->canGrantFloaterStatus(),
+            'LỖI: SuperUser bị chặn quyền cấp Floater status!'
+        );
     }
 }
 
