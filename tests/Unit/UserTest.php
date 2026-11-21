@@ -461,7 +461,47 @@ class UserTest extends TestCase
         $this->assertTrue($canView, 'LỖI: Quyền xem kế thừa từ nhóm hợp lệ nhưng bị từ chối!');
         $this->assertTrue($canEditAssets, 'LỖI: Quyền sửa tài sản kế thừa từ nhóm hợp lệ nhưng bị từ chối!');
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-04
+     * Tên kịch bản: Tích lũy kế thừa quyền hạn từ nhiều nhóm vai trò (Multi-Group Aggregation)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Phép hội hợp quyền (Union Permissions Aggregation)
+     * Mục tiêu an ninh: Xác minh khi nhân sự tham gia nhiều nhóm, họ kế thừa đầy đủ
+     * phép hội (Union) quyền hạn của tất cả các nhóm đó mà không bị xung đột.
+     */
+    public function test_tc_sec_04_permissions_accumulated_from_multiple_groups(): void
+    {
+        // 1. Arrange: Tạo 2 nhóm với các quyền chuyên biệt khác nhau
+        $groupA = Group::factory()->create([
+            'permissions' => json_encode([
+                'assets.view' => '1',
+                'assets.create' => '1',
+            ]),
+        ]);
+
+        $groupB = Group::factory()->create([
+            'permissions' => json_encode([
+                'licenses.view' => '1',
+                'licenses.checkout' => '1',
+            ]),
+        ]);
+
+        // Tạo User không có quyền trực tiếp và gán vào cả 2 nhóm
+        $user = User::factory()->create(['permissions' => '']);
+        $user->groups()->attach([$groupA->id, $groupB->id]);
+
+        // 2. Act & Assert: Khẳng định user kế thừa hợp quyền của cả 2 nhóm
+        $this->assertTrue($user->hasAccess('assets.view'), 'LỖI: Không kế thừa được quyền assets.view từ Nhóm A!');
+        $this->assertTrue($user->hasAccess('assets.create'), 'LỖI: Không kế thừa được quyền assets.create từ Nhóm A!');
+        $this->assertTrue($user->hasAccess('licenses.view'), 'LỖI: Không kế thừa được quyền licenses.view từ Nhóm B!');
+        $this->assertTrue($user->hasAccess('licenses.checkout'), 'LỖI: Không kế thừa được quyền licenses.checkout từ Nhóm B!');
+
+        // Quyền không thuộc nhóm nào => bị từ chối
+        $this->assertFalse($user->hasAccess('users.delete'), 'LỖI AN NINH: User tự ý có quyền ngoài các nhóm được gán!');
+    }
 }
+
 
 
 
