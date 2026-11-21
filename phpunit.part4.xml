@@ -31,7 +31,7 @@
       <file>app/Models/Actionlog.php</file>
       <file>app/Policies/UserPolicy.php</file>
       <file>app/Models/Traits/CompanyableTrait.php</file>
-      <file>app/Models/Scopes/CompanyableScope.php</file>
+      <file>app/Models/CompanyableScope.php</file>
       <file>app/Http/Requests/DeleteUserRequest.php</file>
     </include>
   </source>

@@ -11,7 +11,7 @@ on:
       - 'app/Models/Actionlog.php'
       - 'app/Policies/UserPolicy.php'
       - 'app/Models/Traits/CompanyableTrait.php'
-      - 'app/Models/Scopes/CompanyableScope.php'
+      - 'app/Models/CompanyableScope.php'
       - 'app/Http/Requests/DeleteUserRequest.php'
       - 'tests/Unit/UserTest.php'
       - 'tests/Unit/CompanyScopingTest.php'
@@ -24,7 +24,7 @@ on:
       - 'app/Models/Actionlog.php'
       - 'app/Policies/UserPolicy.php'
       - 'app/Models/Traits/CompanyableTrait.php'
-      - 'app/Models/Scopes/CompanyableScope.php'
+      - 'app/Models/CompanyableScope.php'
       - 'app/Http/Requests/DeleteUserRequest.php'
       - 'tests/Unit/UserTest.php'
       - 'tests/Unit/CompanyScopingTest.php'
@@ -76,7 +76,7 @@ jobs:
           php -l app/Models/Actionlog.php
           php -l app/Policies/UserPolicy.php
           php -l app/Models/Traits/CompanyableTrait.php
-          php -l app/Models/Scopes/CompanyableScope.php
+          php -l app/Models/CompanyableScope.php
           php -l app/Http/Requests/DeleteUserRequest.php
           php -l tests/Unit/UserTest.php
           php -l tests/Unit/CompanyScopingTest.php
