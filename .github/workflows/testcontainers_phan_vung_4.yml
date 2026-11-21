@@ -1,0 +1,61 @@
+name: Testcontainers MySQL Part 4 Security Tests (Nguyen Thanh Minh - 2312691)
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - 'feature/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  part4-security-tests:
+    name: Part 4 Security & Multi-tenancy Tests (K16 Testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip
+          coverage: none
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Prepare Laravel Testing Environment (.env)
+        run: cp .env.testing.example .env
+
+      - name: Install Composer Dependencies
+        run: composer install --no-ansi --no-interaction --no-progress --prefer-dist --no-scripts
+
+      - name: Install NPM Dependencies (@testcontainers/mysql)
+        run: npm install --no-audit --no-fund
+
+      - name: Run 15 Security Test Cases with K16 Testcontainers (MySQL 8.0.36)
+        run: >-
+          npm run test:integration:testcontainers --
+          tests/Unit/UserTest.php
+          tests/Unit/CompanyScopingTest.php
+          --filter=test_tc_sec_
+
+      - name: Upload Test Execution Evidence & Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: part4-security-testcontainers-logs-${{ github.run_attempt }}
+          path: storage/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7
