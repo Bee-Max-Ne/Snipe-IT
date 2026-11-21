@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         backupGlobals="false"
+         backupStaticProperties="false"
+         bootstrap="bootstrap/autoload.php"
+         cacheDirectory=".phpunit.cache"
+         colors="true"
+         processIsolation="false"
+         stopOnFailure="false"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+>
+  <testsuites>
+    <testsuite name="Part4Security">
+      <file>./tests/Unit/UserTest.php</file>
+      <file>./tests/Unit/CompanyScopingTest.php</file>
+    </testsuite>
+  </testsuites>
+  <php>
+    <env name="APP_ENV" value="testing"/>
+    <env name="BCRYPT_ROUNDS" value="4"/>
+    <env name="CACHE_DRIVER" value="array"/>
+    <env name="MAIL_FROM_ADDR" value="app@example.com"/>
+    <env name="MAIL_MAILER" value="array"/>
+    <env name="QUEUE_CONNECTION" value="sync"/>
+    <env name="SESSION_DRIVER" value="array"/>
+    <ini name="display_errors" value="true"/>
+  </php>
+  <source>
+    <include>
+      <file>app/Models/User.php</file>
+      <file>app/Models/Actionlog.php</file>
+      <file>app/Policies/UserPolicy.php</file>
+      <file>app/Models/Traits/CompanyableTrait.php</file>
+      <file>app/Models/Scopes/CompanyableScope.php</file>
+      <file>app/Http/Requests/DeleteUserRequest.php</file>
+    </include>
+  </source>
+</phpunit>

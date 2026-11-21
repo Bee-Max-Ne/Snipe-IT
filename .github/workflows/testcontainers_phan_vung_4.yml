@@ -6,7 +6,32 @@ on:
       - master
       - develop
       - 'feature/**'
+    paths:
+      - 'app/Models/User.php'
+      - 'app/Models/Actionlog.php'
+      - 'app/Policies/UserPolicy.php'
+      - 'app/Models/Traits/CompanyableTrait.php'
+      - 'app/Models/Scopes/CompanyableScope.php'
+      - 'app/Http/Requests/DeleteUserRequest.php'
+      - 'tests/Unit/UserTest.php'
+      - 'tests/Unit/CompanyScopingTest.php'
+      - 'tests/generate_ci_summary.py'
+      - 'phpunit.part4.xml'
+      - '.github/workflows/testcontainers_phan_vung_4.yml'
   pull_request:
+    paths:
+      - 'app/Models/User.php'
+      - 'app/Models/Actionlog.php'
+      - 'app/Policies/UserPolicy.php'
+      - 'app/Models/Traits/CompanyableTrait.php'
+      - 'app/Models/Scopes/CompanyableScope.php'
+      - 'app/Http/Requests/DeleteUserRequest.php'
+      - 'tests/Unit/UserTest.php'
+      - 'tests/Unit/CompanyScopingTest.php'
+      - 'tests/generate_ci_summary.py'
+      - 'phpunit.part4.xml'
+      - '.github/workflows/testcontainers_phan_vung_4.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,7 +40,7 @@ jobs:
   part4-security-tests:
     name: Part 4 Security & Multi-tenancy Tests (K16 Testcontainers MySQL 8.0.36)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     services:
       mysql:
@@ -33,24 +58,54 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup PHP 8.2
+      - name: Setup PHP 8.2 with PCOV Code Coverage Engine
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.2"
-          extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip
-          coverage: none
+          extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip, pcov
+          coverage: pcov
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
+      - name: "Fail-Fast Gate: Static Syntax & Lint Check"
+        run: |
+          php -l app/Models/User.php
+          php -l app/Models/Actionlog.php
+          php -l app/Policies/UserPolicy.php
+          php -l app/Models/Traits/CompanyableTrait.php
+          php -l app/Models/Scopes/CompanyableScope.php
+          php -l app/Http/Requests/DeleteUserRequest.php
+          php -l tests/Unit/UserTest.php
+          php -l tests/Unit/CompanyScopingTest.php
+          python3 -m py_compile tests/generate_ci_summary.py
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Cache Node.js Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
       - name: Prepare Laravel Testing Environment (.env)
         run: |
           cp -v .env.testing.example .env
           cp -v .env.testing.example .env.testing
 
-      - name: Install Composer Dependencies
+      - name: Install Composer Dependencies (Optimized)
         run: composer install --no-ansi --no-interaction --no-progress --prefer-dist --no-scripts
 
       - name: Setup Laravel Keys & Storage Permissions
@@ -72,7 +127,7 @@ jobs:
           DB_PASSWORD: ""
         run: |
           mkdir -p storage/logs
-          php artisan test --filter=test_tc_sec_ | tee storage/logs/phpunit_part4_execution.log
+          php artisan test -c phpunit.part4.xml --filter=test_tc_sec_ --coverage-text | tee storage/logs/phpunit_part4_execution.log
 
       - name: Publish Dynamic Quality, Coverage & Performance Dashboard to Summary
         if: always()
