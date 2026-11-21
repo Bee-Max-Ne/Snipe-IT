@@ -516,6 +516,43 @@ class CompanyScopingTest extends TestCase
         );
     }
 
+    /**
+     * Mã kiểm thử: TC-SEC-14
+     * Tên kịch bản: Toàn vẹn dữ liệu tài sản không gắn công ty trên ma trận 6 models (Strict vs Floater)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: DataProvider Matrix / Multi-tenant Scoping Integrity
+     * Mục tiêu an ninh: Khẳng định hành vi scoping tài sản unassigned (null company) trên 6 models:
+     * Accessories, Assets, Components, Consumables, Departments, Licenses tuân thủ đúng ma trận an ninh:
+     * Ẩn hoàn toàn trong Strict Mode và chỉ hiển thị khi bật Floater Mode.
+     */
+    #[DataProvider('models')]
+    public function test_tc_sec_14_null_company_scoping_matrix_across_all_models($model): void
+    {
+        // 1. Arrange: Khởi tạo Công ty, Item không gán công ty (null) và Item gán cho Công ty
+        $company = Company::factory()->create();
+        $nullCompanyItem = $model::factory()->create(['company_id' => null]);
+        $companyItem = $model::factory()->for($company)->create();
+        $companyUser = $company->users()->save(User::factory()->make());
+
+        // 2. Act & Assert ở chế độ nghiêm ngặt (Strict Mode):
+        $this->settings->enableMultipleFullCompanySupport();
+        $this->actingAs($companyUser);
+        Company::flushCompanyIdsCache();
+
+        // Trong Strict Mode, nhân viên công ty KHÔNG ĐƯỢC THẤY item không gán công ty
+        $this->assertCannotSee($nullCompanyItem);
+        $this->assertCanSee($companyItem);
+
+        // 3. Act & Assert ở chế độ Floater Mode:
+        $this->settings->enableFloaterMode();
+        $this->actingAs($companyUser);
+        Company::flushCompanyIdsCache();
+
+        // Trong Floater Mode, nhân viên công ty ĐƯỢC THẤY item không gán công ty
+        $this->assertCanSee($nullCompanyItem);
+        $this->assertCanSee($companyItem);
+    }
+
     private function assertCanSee(Model $model)
     {
         $this->assertTrue(
