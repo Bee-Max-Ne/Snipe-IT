@@ -35,4 +35,7 @@
       <file>app/Http/Requests/DeleteUserRequest.php</file>
     </include>
   </source>
+  <logging>
+    <junit outputFile="storage/logs/test-reports/junit_part4_report.xml"/>
+  </logging>
 </phpunit>

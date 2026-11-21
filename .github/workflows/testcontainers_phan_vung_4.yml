@@ -126,19 +126,21 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: ""
         run: |
-          mkdir -p storage/logs
-          php artisan test -c phpunit.part4.xml --filter=test_tc_sec_ --coverage-text | tee storage/logs/phpunit_part4_execution.log
+          mkdir -p storage/logs/test-reports storage/logs/artifacts
+          php artisan test -c phpunit.part4.xml --filter=test_tc_sec_ --coverage-text | tee storage/logs/test-reports/phpunit_part4_execution.log
 
       - name: Publish Dynamic Quality, Coverage & Performance Dashboard to Summary
         if: always()
         run: |
-          python3 tests/generate_ci_summary.py storage/logs/phpunit_part4_execution.log "$GITHUB_STEP_SUMMARY"
+          python3 tests/generate_ci_summary.py storage/logs/test-reports/phpunit_part4_execution.log "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Test Execution Evidence & Logs
+      - name: Upload Test Execution Evidence & Reports (Gold Standard)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: part4-security-testcontainers-logs-${{ github.run_attempt }}
-          path: storage/logs/*.log
+          name: part4-security-testcontainers-evidence-${{ github.run_attempt }}
+          path: |
+            storage/logs/test-reports/*
+            storage/logs/artifacts/*
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 14
