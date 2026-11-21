@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Actionlog;
+use App\Models\Group;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
@@ -418,6 +419,49 @@ class UserTest extends TestCase
         $this->assertFalse($user->hasAccess('users.delete'), 'LỖI AN NINH: Quyền users.delete chưa cấp nhưng được cấp phép!');
         $this->assertFalse($user->hasAccess('admin'), 'LỖI AN NINH: User thường tự có quyền admin!');
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-03
+     * Tên kịch bản: Giải quyết xung đột - Phủ quyết đích danh thắng cấp phép nhóm (Deny Overrides Allow)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Bảng quyết định xung đột quyền (Explicit Deny Decision Table)
+     * Mục tiêu an ninh: Chứng minh nguyên tắc an ninh tối cao: Khi Group cấp phép ('1'),
+     * nhưng User bị cấm chỉ định ('-1'), hệ thống BẮT BUỘC phải từ chối (Khóa chặt DEFECT-SEC-03).
+     */
+    public function test_tc_sec_03_explicit_user_deny_overrides_group_permission_allow(): void
+    {
+        // 1. Arrange: Tạo Group có quyền xóa và xem; Tạo User bị cấm xóa (-1)
+        $group = Group::factory()->create([
+            'permissions' => json_encode([
+                'users.delete' => '1',
+                'users.view' => '1',
+                'assets.edit' => '1',
+            ]),
+        ]);
+
+        $user = User::factory()->create([
+            'permissions' => json_encode([
+                'users.delete' => '-1', // Cấm tuyệt đối
+                'assets.create' => '1',
+            ]),
+        ]);
+
+        $user->groups()->attach($group->id);
+
+        // 2. Act: Thực thi kiểm tra quyền hạn
+        $canDelete = $user->hasAccess('users.delete');
+        $canView = $user->hasAccess('users.view');
+        $canEditAssets = $user->hasAccess('assets.edit');
+
+        // 3. Assert: Quyền cấm (-1) của user phải ghi đè quyền cho phép (1) của nhóm
+        $this->assertFalse(
+            $canDelete,
+            'LỖI AN NINH NGHIÊM TRỌNG (DEFECT-SEC-03): Quyền cấm chỉ định (-1) bị quyền nhóm (1) ghi đè!'
+        );
+        $this->assertTrue($canView, 'LỖI: Quyền xem kế thừa từ nhóm hợp lệ nhưng bị từ chối!');
+        $this->assertTrue($canEditAssets, 'LỖI: Quyền sửa tài sản kế thừa từ nhóm hợp lệ nhưng bị từ chối!');
+    }
 }
+
 
 
