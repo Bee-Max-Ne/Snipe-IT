@@ -388,5 +388,36 @@ class UserTest extends TestCase
         // Khẳng định cờ isSuperUser hoạt động chính xác
         $this->assertTrue($superUser->isSuperUser(), 'LỖI AN NINH: Cờ isSuperUser không nhận diện được Superuser!');
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-02
+     * Tên kịch bản: Giới hạn quyền phân tầng đơn lẻ của người dùng (Least Privilege Boundary)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Role Boundary / Least Privilege Verification
+     * Mục tiêu an ninh: Xác minh người dùng chỉ được phép thực thi đúng hành động được cấp phép ('1'),
+     * các hành vi chưa cấp hoặc đặt '0' phải bị từ chối tuyệt đối.
+     */
+    public function test_tc_sec_02_user_with_granular_permissions_is_strictly_bounded(): void
+    {
+        // 1. Arrange: Tạo User với quyền xem người dùng ('1') và không có quyền tạo ('0')
+        $user = User::factory()->create([
+            'permissions' => json_encode([
+                'users.view' => '1',
+                'users.create' => '0',
+            ]),
+        ]);
+
+        // 2. Act & Assert: Khẳng định ranh giới đặc quyền tối thiểu
+        // Quyền được cấp '1' => cho phép
+        $this->assertTrue($user->hasAccess('users.view'), 'LỖI: Quyền users.view = 1 nhưng bị từ chối!');
+
+        // Quyền đặt '0' => từ chối
+        $this->assertFalse($user->hasAccess('users.create'), 'LỖI AN NINH: Quyền users.create = 0 nhưng vẫn được cấp phép!');
+
+        // Quyền chưa từng gán => mặc định từ chối
+        $this->assertFalse($user->hasAccess('users.delete'), 'LỖI AN NINH: Quyền users.delete chưa cấp nhưng được cấp phép!');
+        $this->assertFalse($user->hasAccess('admin'), 'LỖI AN NINH: User thường tự có quyền admin!');
+    }
 }
+
 
