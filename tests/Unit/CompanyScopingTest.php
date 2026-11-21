@@ -397,6 +397,34 @@ class CompanyScopingTest extends TestCase
         $this->assertCanSee($floater);
     }
 
+    /**
+     * Mã kiểm thử: TC-SEC-11
+     * Tên kịch bản: Cô lập dữ liệu người dùng đa công ty ở chế độ nghiêm ngặt (Strict Mode Scoping)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Multi-tenant Data Isolation / SQL Scoping Verification
+     * Mục tiêu an ninh: Chứng minh người dùng Công ty A truy vấn danh sách người dùng chỉ nhận
+     * được nhân sự thuộc Công ty A, hoàn toàn bị cô lập khỏi Công ty B (không rò rỉ dữ liệu).
+     */
+    public function test_tc_sec_11_company_scoped_user_cannot_see_other_companies_users_in_strict_mode(): void
+    {
+        // 1. Arrange: Khởi tạo 2 công ty và 2 người dùng thuộc 2 công ty khác nhau
+        [$companyA, $companyB] = Company::factory()->count(2)->create();
+
+        $userA = $companyA->users()->save(User::factory()->make());
+        $userB = $companyB->users()->save(User::factory()->make());
+
+        // Bật chế độ đa công ty nghiêm ngặt (FMCS Strict Mode: floater off)
+        $this->settings->enableMultipleFullCompanySupport();
+
+        // 2. Act: Thực hiện đăng nhập dưới danh tính User A và làm mới cache phân quyền công ty
+        $this->actingAs($userA);
+        Company::flushCompanyIdsCache();
+
+        // 3. Assert: Khẳng định User A chỉ nhìn thấy chính mình / nhân viên Cty A, tuyệt đối không thấy User B
+        $this->assertCanSee($userA);
+        $this->assertCannotSee($userB);
+    }
+
     private function assertCanSee(Model $model)
     {
         $this->assertTrue(
