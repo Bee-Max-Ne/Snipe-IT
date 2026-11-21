@@ -524,7 +524,33 @@ class UserTest extends TestCase
             $this->assertFalse($user->isSuperUser(), 'LỖI AN NINH: User rỗng quyền là SuperUser!');
         }
     }
+
+    /**
+     * Mã kiểm thử: TC-SEC-06
+     * Tên kịch bản: Chống leo thang đặc quyền tạo và xóa người dùng qua UserPolicy
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Role Boundary / Least Privilege Verification
+     * Mục tiêu an ninh: Ngăn chặn người dùng thường hoặc Viewer lợi dụng quyền để tạo thêm
+     * tài khoản quản trị hoặc xóa tài khoản của người khác.
+     */
+    public function test_tc_sec_06_regular_user_cannot_create_or_delete_users_via_policy(): void
+    {
+        // 1. Arrange: Chuẩn bị SuperUser, RegularUser (không quyền) và TargetUser
+        $superUser = User::factory()->superuser()->create();
+        $regularUser = User::factory()->create();
+        $targetUser = User::factory()->create();
+
+        // 2. Act & Assert:
+        // SuperUser được phép thực hiện mọi thao tác quản trị qua Policy
+        $this->assertTrue(Gate::forUser($superUser)->allows('create', User::class), 'LỖI: SuperUser bị chặn tạo người dùng!');
+        $this->assertTrue(Gate::forUser($superUser)->allows('delete', $targetUser), 'LỖI: SuperUser bị chặn xóa người dùng!');
+
+        // RegularUser không có quyền admin/users.delete bị chặn hoàn toàn
+        $this->assertFalse(Gate::forUser($regularUser)->allows('create', User::class), 'LỖI AN NINH: RegularUser tự ý tạo được người dùng!');
+        $this->assertFalse(Gate::forUser($regularUser)->allows('delete', $targetUser), 'LỖI AN NINH: RegularUser tự ý xóa được người dùng khác!');
+    }
 }
+
 
 
 
