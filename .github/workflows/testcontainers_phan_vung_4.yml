@@ -127,7 +127,7 @@ jobs:
           DB_PASSWORD: ""
         run: |
           mkdir -p storage/logs/test-reports storage/logs/artifacts
-          php artisan test -c phpunit.part4.xml --filter=test_tc_sec_ --coverage-text | tee storage/logs/test-reports/phpunit_part4_execution.log
+          vendor/bin/phpunit -c phpunit.part4.xml --filter=test_tc_sec_ --coverage-html storage/logs/test-reports/coverage-html --coverage-clover storage/logs/test-reports/coverage_clover.xml --testdox-html storage/logs/test-reports/testdox.html --coverage-text | tee storage/logs/test-reports/phpunit_part4_execution.log
 
       - name: Publish Dynamic Quality, Coverage & Performance Dashboard to Summary
         if: always()
@@ -140,7 +140,7 @@ jobs:
         with:
           name: part4-security-testcontainers-evidence-${{ github.run_attempt }}
           path: |
-            storage/logs/test-reports/*
-            storage/logs/artifacts/*
+            storage/logs/test-reports/**
+            storage/logs/artifacts/**
           if-no-files-found: ignore
           retention-days: 14
