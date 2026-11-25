@@ -10,9 +10,14 @@
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
 >
   <testsuites>
-    <testsuite name="Part4Security">
+    <testsuite name="Part4UnitSecurity">
       <file>./tests/Unit/UserTest.php</file>
       <file>./tests/Unit/CompanyScopingTest.php</file>
+    </testsuite>
+    <testsuite name="Part4FeatureIntegration">
+      <file>./tests/Feature/Users/SecurityPart4ApiIntegrationTest.php</file>
+      <file>./tests/Feature/Users/ImpersonateUserTest.php</file>
+      <file>./tests/Feature/Authentication/LoginTest.php</file>
     </testsuite>
   </testsuites>
   <php>
@@ -33,6 +38,10 @@
       <file>app/Models/Traits/CompanyableTrait.php</file>
       <file>app/Models/CompanyableScope.php</file>
       <file>app/Http/Requests/DeleteUserRequest.php</file>
+      <file>app/Http/Controllers/Api/UsersController.php</file>
+      <file>app/Http/Controllers/Users/UsersController.php</file>
+      <file>app/Http/Controllers/Auth/LoginController.php</file>
+      <file>app/Providers/AuthServiceProvider.php</file>
     </include>
   </source>
   <logging>
