@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - main
       - develop
       - 'feature/**'
     paths:
@@ -13,8 +14,16 @@ on:
       - 'app/Models/Traits/CompanyableTrait.php'
       - 'app/Models/CompanyableScope.php'
       - 'app/Http/Requests/DeleteUserRequest.php'
+      - 'app/Http/Controllers/Api/UsersController.php'
+      - 'app/Http/Controllers/Users/UsersController.php'
+      - 'app/Http/Controllers/Auth/LoginController.php'
+      - 'app/Providers/AuthServiceProvider.php'
       - 'tests/Unit/UserTest.php'
       - 'tests/Unit/CompanyScopingTest.php'
+      - 'tests/Feature/Users/**'
+      - 'tests/Feature/Authentication/**'
+      - 'tests/testcontainers/run.mjs'
+      - 'tests/capture_env_metadata.php'
       - 'tests/generate_ci_summary.py'
       - 'phpunit.part4.xml'
       - '.github/workflows/testcontainers_phan_vung_4.yml'
@@ -26,8 +35,16 @@ on:
       - 'app/Models/Traits/CompanyableTrait.php'
       - 'app/Models/CompanyableScope.php'
       - 'app/Http/Requests/DeleteUserRequest.php'
+      - 'app/Http/Controllers/Api/UsersController.php'
+      - 'app/Http/Controllers/Users/UsersController.php'
+      - 'app/Http/Controllers/Auth/LoginController.php'
+      - 'app/Providers/AuthServiceProvider.php'
       - 'tests/Unit/UserTest.php'
       - 'tests/Unit/CompanyScopingTest.php'
+      - 'tests/Feature/Users/**'
+      - 'tests/Feature/Authentication/**'
+      - 'tests/testcontainers/run.mjs'
+      - 'tests/capture_env_metadata.php'
       - 'tests/generate_ci_summary.py'
       - 'phpunit.part4.xml'
       - '.github/workflows/testcontainers_phan_vung_4.yml'
@@ -38,25 +55,16 @@ permissions:
 
 jobs:
   part4-security-tests:
-    name: Part 4 Security & Multi-tenancy Tests (K16 Testcontainers MySQL 8.0.36)
+    name: Part 4 Security & Integration Tests (K16 Testcontainers MySQL 8.0.36)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    services:
-      mysql:
-        image: mysql:8.0.36
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: yes
-          MYSQL_DATABASE: snipeit_testing
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    timeout-minutes: 25
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup PHP 8.2 with PCOV Code Coverage Engine
         uses: shivammathur/setup-php@v2
@@ -78,8 +86,16 @@ jobs:
           php -l app/Models/Traits/CompanyableTrait.php
           php -l app/Models/CompanyableScope.php
           php -l app/Http/Requests/DeleteUserRequest.php
+          php -l app/Http/Controllers/Api/UsersController.php
+          php -l app/Http/Controllers/Users/UsersController.php
+          php -l app/Http/Controllers/Auth/LoginController.php
+          php -l app/Providers/AuthServiceProvider.php
           php -l tests/Unit/UserTest.php
           php -l tests/Unit/CompanyScopingTest.php
+          php -l tests/Feature/Users/SecurityPart4ApiIntegrationTest.php
+          php -l tests/Feature/Users/ImpersonateUserTest.php
+          php -l tests/Feature/Authentication/LoginTest.php
+          php -l tests/capture_env_metadata.php
           python3 -m py_compile tests/generate_ci_summary.py
 
       - name: Get Composer Cache Directory
@@ -111,30 +127,34 @@ jobs:
       - name: Setup Laravel Keys & Storage Permissions
         run: |
           php artisan key:generate
-          php artisan passport:keys
           chmod -R 777 storage bootstrap/cache
 
       - name: Install NPM Dependencies (@testcontainers/mysql)
         run: npm install --no-audit --no-fund
 
-      - name: Run 15 Security Test Cases with Docker Container (MySQL 8.0.36)
-        env:
-          DB_CONNECTION: mysql
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_DATABASE: snipeit_testing
-          DB_USERNAME: root
-          DB_PASSWORD: ""
+      - name: Run Part 4 Unit & Feature Tests via K16 Testcontainers (MySQL 8.0.36)
         run: |
           mkdir -p storage/logs/test-reports storage/logs/artifacts
-          vendor/bin/phpunit -c phpunit.part4.xml --filter=test_tc_sec_ --coverage-html storage/logs/test-reports/coverage-html --coverage-clover storage/logs/test-reports/coverage_clover.xml --testdox-html storage/logs/test-reports/testdox.html --coverage-text | tee storage/logs/test-reports/phpunit_part4_execution.log
+          git log --oneline -n 25 > storage/logs/test-reports/git_commit_evidence.txt
+          set -o pipefail
+          node tests/testcontainers/run.mjs \
+            -c phpunit.part4.xml \
+            --coverage-html storage/logs/test-reports/coverage-html \
+            --coverage-clover storage/logs/test-reports/coverage_clover.xml \
+            --testdox-html storage/logs/test-reports/testdox.html \
+            --coverage-text | tee storage/logs/test-reports/phpunit_part4_execution.log
+
+      - name: Capture Environment & Git Metadata
+        if: always()
+        run: |
+          php tests/capture_env_metadata.php storage/logs/test-reports/environment_metadata.json
 
       - name: Publish Dynamic Quality, Coverage & Performance Dashboard to Summary
         if: always()
         run: |
           python3 tests/generate_ci_summary.py storage/logs/test-reports/phpunit_part4_execution.log "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Test Execution Evidence & Reports (Gold Standard)
+      - name: Upload Test Execution Evidence, Coverage & Laravel Logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -142,5 +162,6 @@ jobs:
           path: |
             storage/logs/test-reports/**
             storage/logs/artifacts/**
+            storage/logs/*.log
           if-no-files-found: ignore
           retention-days: 14
