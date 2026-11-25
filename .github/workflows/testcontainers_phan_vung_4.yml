@@ -72,6 +72,7 @@ jobs:
           php-version: "8.2"
           extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip, pcov
           coverage: pcov
+          ini-values: memory_limit=1G
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -127,6 +128,7 @@ jobs:
       - name: Setup Laravel Keys & Storage Permissions
         run: |
           php artisan key:generate
+          php artisan passport:keys
           chmod -R 777 storage bootstrap/cache
 
       - name: Install NPM Dependencies (@testcontainers/mysql)
@@ -143,6 +145,14 @@ jobs:
             --coverage-clover storage/logs/test-reports/coverage_clover.xml \
             --testdox-html storage/logs/test-reports/testdox.html \
             --coverage-text | tee storage/logs/test-reports/phpunit_part4_execution.log
+
+      - name: Emit Failure Diagnostics Annotation
+        if: failure()
+        run: |
+          if [ -f storage/logs/test-reports/phpunit_part4_execution.log ]; then
+            ERR_MSG=$(tail -n 35 storage/logs/test-reports/phpunit_part4_execution.log | tr '\n' ' ' | cut -c 1-1000)
+            echo "::error::PHPUnit failure tail: ${ERR_MSG}"
+          fi
 
       - name: Capture Environment & Git Metadata
         if: always()
