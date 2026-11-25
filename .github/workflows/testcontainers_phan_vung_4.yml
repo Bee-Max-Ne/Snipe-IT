@@ -150,8 +150,8 @@ jobs:
         if: failure()
         run: |
           if [ -f storage/logs/test-reports/phpunit_part4_execution.log ]; then
-            ERR_MSG=$(tail -n 35 storage/logs/test-reports/phpunit_part4_execution.log | tr '\n' ' ' | cut -c 1-1000)
-            echo "::error::PHPUnit failure tail: ${ERR_MSG}"
+            ERR_MSG=$(grep -E -A 6 "1\)|There was|There were|ERRORS!|FAILURES!" storage/logs/test-reports/phpunit_part4_execution.log | tr '\n' ' ' | cut -c 1-1000)
+            echo "::error::${ERR_MSG}"
           fi
 
       - name: Capture Environment & Git Metadata
