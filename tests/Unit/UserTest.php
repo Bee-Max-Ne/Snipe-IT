@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Actionlog;
+use App\Models\Group;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
@@ -301,6 +302,21 @@ class UserTest extends TestCase
         $this->assertTrue($viewerUser->hasAccess('users.view'));
         $this->assertFalse($viewerUser->hasAccess('users.delete'));
         $this->assertFalse($viewerUser->hasAccess('admin'));
+
+        // 3. Quyền kế thừa từ nhóm, và quyền cấm riêng (-1) phải thắng quyền cho phép của nhóm
+        $group = Group::factory()->create([
+            'permissions' => json_encode(['users.view' => '1', 'users.delete' => '1']),
+        ]);
+        $deniedUser = User::factory()->create([
+            'permissions' => json_encode(['users.delete' => '-1']),
+        ]);
+        $deniedUser->groups()->attach($group->id);
+
+        $this->assertTrue($deniedUser->hasAccess('users.view'), 'Quyền xem kế thừa từ nhóm phải được cấp');
+        $this->assertFalse($deniedUser->hasAccess('users.delete'), 'Quyền cấm riêng (-1) phải ghi đè quyền của nhóm');
+
+        // 4. Không quyền riêng, không nhóm: mặc định từ chối
+        $this->assertFalse(User::factory()->create(['permissions' => ''])->hasAccess('users.view'));
     }
 
     /**
@@ -319,13 +335,29 @@ class UserTest extends TestCase
 
         // Regular User không có quyền admin/users.delete bị chặn
         $this->assertFalse(Gate::forUser($regularUser)->allows('delete', $targetUser));
+
+        // Kịch bản leo thang đặc quyền thật: admin thường (admin = 1, không phải superuser)
+        // và sub-admin (users.edit) không được sửa trường xác thực của superuser
+        // (mật khẩu, username, email, 2FA) để chiếm tài khoản superuser
+        $regularAdmin = User::factory()->create([
+            'permissions' => json_encode(['admin' => '1', 'users.edit' => '1']),
+        ]);
+        $subAdmin = User::factory()->create([
+            'permissions' => json_encode(['users.edit' => '1']),
+        ]);
+
+        $this->assertFalse(Gate::forUser($regularAdmin)->allows('canEditAuthFields', $superUser));
+        $this->assertFalse(Gate::forUser($subAdmin)->allows('canEditAuthFields', $superUser));
+        $this->assertTrue(Gate::forUser($superUser)->allows('canEditAuthFields', $subAdmin));
     }
 
     /**
      * WBS Member 4 (Nguyễn Thành Minh - 2312691):
-     * Kiểm thử tính bất biến của nhật ký kiểm toán hệ thống (action_logs).
+     * Kiểm thử bản ghi nhật ký kiểm toán (action_logs) được lưu đúng và liên kết đúng người thực hiện.
+     * Tên cũ test_action_logs_audit_trail_integrity được đổi vì test không thử sửa/xóa log,
+     * nên chưa chứng minh được tính bất biến (immutability).
      */
-    public function test_action_logs_audit_trail_integrity(): void
+    public function test_action_log_is_persisted_with_correct_actor(): void
     {
         $admin = User::factory()->superuser()->create();
         $target = User::factory()->create();

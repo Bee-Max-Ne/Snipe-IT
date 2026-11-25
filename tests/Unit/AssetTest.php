@@ -440,14 +440,42 @@ class AssetTest extends TestCase
 
     /**
      * WBS Member 2 (Nguyễn Văn Quốc - 2312729):
-     * Kiểm thử ràng buộc duy nhất (UNIQUE constraint) của mã định danh tài sản (asset_tag) chống trùng lặp dữ liệu.
+     * Tính duy nhất của asset_tag được bảo vệ ở tầng model (luật validation
+     * unique_undeleted), không phải bằng ràng buộc UNIQUE trong CSDL.
+     * Bản trước của test này mong đợi QueryException từ MySQL nên luôn FAIL.
      */
-    public function test_asset_tag_unique_constraint_prevents_duplicate_tag(): void
+    public function test_asset_tag_uniqueness_is_enforced_by_model_validation(): void
     {
         $tag = 'UNIQUE-TAG-TEST-2026';
         Asset::factory()->create(['asset_tag' => $tag]);
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
-        Asset::factory()->create(['asset_tag' => $tag]);
+        $duplicate = Asset::factory()->make(['asset_tag' => $tag]);
+
+        $this->assertFalse($duplicate->save(), 'Model phải từ chối lưu asset_tag trùng');
+        $this->assertArrayHasKey('asset_tag', $duplicate->getErrors()->toArray());
+        $this->assertSame(1, Asset::where('asset_tag', $tag)->count());
+    }
+
+    /**
+     * WBS Member 2 (Nguyễn Văn Quốc - 2312729):
+     * Test ghi nhận hiện trạng (characterization): CSDL chỉ có index thường
+     * trên (deleted_at, asset_tag), không có UNIQUE. Ghi trực tiếp vào bảng,
+     * bỏ qua validation, sẽ lọt bản ghi trùng. Nếu sau này thêm UNIQUE index,
+     * test này sẽ FAIL để nhắc cập nhật tài liệu.
+     */
+    public function test_database_does_not_enforce_asset_tag_uniqueness(): void
+    {
+        $tag = 'DB-LEVEL-TAG-2026';
+        $first = Asset::factory()->create(['asset_tag' => $tag]);
+
+        DB::table('assets')->insert([
+            'asset_tag' => $tag,
+            'model_id' => $first->model_id,
+            'status_id' => $first->status_id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertSame(2, Asset::where('asset_tag', $tag)->count());
     }
 }
