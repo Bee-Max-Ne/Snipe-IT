@@ -135,6 +135,8 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Run Part 4 Unit & Feature Tests via K16 Testcontainers (MySQL 8.0.36)
+        env:
+          TESTCONTAINERS_HOST_OVERRIDE: 127.0.0.1
         run: |
           mkdir -p storage/logs/test-reports storage/logs/artifacts
           git log --oneline -n 25 > storage/logs/test-reports/git_commit_evidence.txt
