@@ -48,7 +48,21 @@ if (-not $dockerReady -and -not $FallbackLocal) {
     exit 1
 }
 
+# Tự động kích hoạt xuất Code Coverage nếu máy có PCOV hoặc Xdebug
+$hasCoverageDriver = $false
+if ($phpCmd) {
+    $hasCoverageDriver = (& $phpCmd.Source -m 2>$null | Select-String -Pattern "^(pcov|xdebug)$" -Quiet)
+}
+
 $phpunitArgs = @("-c", "phpunit.part4.xml", "--testdox-html", $testdoxFile)
+if ($hasCoverageDriver) {
+    Write-Host "[INFO] Da phat hien driver Code Coverage (PCOV/Xdebug) -> Tu dong xuat HTML & Clover XML." -ForegroundColor Cyan
+    $phpunitArgs += @(
+        "--coverage-html", "$reportDir/coverage-html",
+        "--coverage-clover", "$reportDir/coverage_clover.xml",
+        "--coverage-text"
+    )
+}
 if ($Filter -ne "") {
     $phpunitArgs += @("--filter", $Filter)
 }
