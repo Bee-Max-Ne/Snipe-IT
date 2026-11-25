@@ -11,83 +11,68 @@
 
 ## 1. TỔNG QUAN KẾT QUẢ THỰC NGHIỆM (EXECUTION METRICS & SUMMARY)
 
-Bộ kiểm thử của Phân vùng 4 đã được thực thi toàn diện và kiểm chứng thành công trên môi trường PHP 8.3 CLI và CSDL container chuẩn hóa K16 Testcontainers (MySQL 8.0.36).
+Bộ kiểm thử của Phân vùng 4 đã được thực thi toàn diện theo kỹ thuật **K16 Testcontainers (`tests/testcontainers/run.mjs` -> Docker `mysql:8.0.36`)** trên cả máy cục bộ (Windows / PHP 8.3.26) và GitHub Actions CI/CD (Ubuntu / PHP 8.2 + PCOV Engine — [Run #45632978652](https://github.com/Bee-Max-Ne/Snipe-IT/actions/runs/45632978652)).
 
 ### 1.1 Bảng Chỉ Số Thực Nghiệm Tổng Hợp (Executive Metrics Dashboard)
 
-| Chỉ số đo lường (Metric) | Kế hoạch cam kết (Plan) | Kết quả thực tế (Actual) | Tỷ lệ hoàn thành / Đánh giá |
+| Chỉ số đo lường (Metric) | Kế hoạch / Yêu cầu K16 | Kết quả thực tế (K16 MySQL 8.0.36) | Đánh giá |
 | :--- | :---: | :---: | :---: |
-| **Tổng số ca kiểm thử thiết kế** | 15 test cases | **15 test cases** | 100% đầy đủ |
-| **Số lần chạy kiểm thử (Executions)** | 20 runs (có DataProvider) | **20 test executions** | 100% bao phủ |
-| **Số ca kiểm thử Thành công (Passed)** | 20 runs | **20 runs (PASS 100%)** | ✅ ĐẠT TUYỆT ĐỐI |
-| **Số ca kiểm thử Thất bại (Failed / Error)**| 0 | **0** | ✅ KHÔNG CÓ LỖI TỒN ĐỌNG |
-| **Tổng số điểm khẳng định (Assertions)** | $\ge 50$ | **92 assertions** | Vượt 184% chỉ tiêu |
-| **Thời gian thực thi trung bình** | $\le 15.0$ giây | **6.71 giây** | Cực kỳ tối ưu |
-| **Số Git Commit nguyên tử (Atomic Commits)**| 15 commits riêng lẻ | **15 commits hoàn tất** | 100% Conventional Commits |
-| **Tỷ lệ Pass Rate** | 100% | **100.0%** | Chuẩn an ninh cấp cao |
+| **Ca kiểm thử trọng tâm tự thiết kế** | 15 Unit + $\ge 5$ Integration | **15 Unit (`TC-SEC-01..15`) + 6 Feature/API (`TC-SEC-API-01..06`)** | Vượt chỉ tiêu K16 |
+| **Số lần chạy trọng tâm (có DataProvider)**| 26 executions | **26 executions / 135 assertions** | ✅ **PASS 100%** |
+| **Toàn bộ Suite Phân vùng 4 (`phpunit.part4.xml`)** | 5 tệp Unit + Feature | **115 tests / 443 assertions** (`UserTest`, `CompanyScopingTest`, `SecurityPart4ApiIntegrationTest`, `ImpersonateUserTest`, `LoginTest`) | ✅ **PASS 100%** |
+| **Số ca kiểm thử Thất bại / Lỗi** | 0 | **0 failures, 0 errors** | ✅ ZERO FAILURE |
+| **Thời gian thực thi trên CI/CD (Linux K16 + PCOV)** | $\le 600$ giây | **~57 giây** (kèm sinh HTML & Clover XML) | ✅ Tối ưu |
+| **Chứng từ log & Toàn vẹn** | JUnit XML + Coverage + Hash | `junit_part4_report.xml`, `coverage_clover.xml`, `coverage-html/`, `testdox.html`, `mysql_container_proof.json`, `environment_metadata.json`, `checksums.sha256` | ✅ Chuẩn công nghiệp |
 
 ---
 
-## 2. BẢNG CHI TIẾT KẾT QUẢ 15 CA KIỂM THỬ THỰC TẾ (TEST RESULTS MATRIX)
+## 2. BẢNG ÁNH XẠ TRUY VẾT VỚI BÁO CÁO GIỮA KỲ (`BAO_CAO_GK_Nhom05.docx`)
 
-| Mã Ca Test | Tên Phương Thức Kiểm Thử (Method Name) | Tệp Nguồn Test | Assertions | Thời Gian | Trạng Thái |
-| :---: | :--- | :--- | :---: | :---: | :---: |
-| **`TC-SEC-01`** | `test_tc_sec_01_superuser_has_unconditional_access_to_all_sections` | `tests/Unit/UserTest.php` | 11 | 0.09s | 🟢 **PASS** |
-| **`TC-SEC-02`** | `test_tc_sec_02_user_with_granular_permissions_is_strictly_bounded` | `tests/Unit/UserTest.php` | 4 | 0.09s | 🟢 **PASS** |
-| **`TC-SEC-03`** | `test_tc_sec_03_explicit_user_deny_overrides_group_permission_allow` | `tests/Unit/UserTest.php` | 3 | 0.11s | 🟢 **PASS** |
-| **`TC-SEC-04`** | `test_tc_sec_04_permissions_accumulated_from_multiple_groups` | `tests/Unit/UserTest.php` | 5 | 0.13s | 🟢 **PASS** |
-| **`TC-SEC-05`** | `test_tc_sec_05_default_deny_when_no_permissions_assigned` | `tests/Unit/UserTest.php` | 10 | 0.09s | 🟢 **PASS** |
-| **`TC-SEC-06`** | `test_tc_sec_06_regular_user_cannot_create_or_delete_users_via_policy` | `tests/Unit/UserTest.php` | 4 | 0.09s | 🟢 **PASS** |
-| **`TC-SEC-07`** | `test_tc_sec_07_subadmin_cannot_modify_superuser_auth_fields` | `tests/Unit/UserTest.php` | 3 | 0.10s | 🟢 **PASS** |
-| **`TC-SEC-08`** | `test_tc_sec_08_impersonation_boundaries_enforced` | `tests/Unit/UserTest.php` | 6 | 0.11s | 🟢 **PASS** |
-| **`TC-SEC-09`** | `test_tc_sec_09_admin_cannot_delete_themselves` | `tests/Unit/UserTest.php` | 5 | 0.09s | 🟢 **PASS** |
-| **`TC-SEC-10`** | `test_tc_sec_10_companied_admin_cannot_grant_floater_status` | `tests/Unit/UserTest.php` | 2 | 0.09s | 🟢 **PASS** |
-| **`TC-SEC-11`** | `test_tc_sec_11_company_scoped_user_cannot_see_other_companies_users_in_strict_mode` | `tests/Unit/CompanyScopingTest.php` | 2 | 3.18s | 🟢 **PASS** |
-| **`TC-SEC-12`** | `test_tc_sec_12_company_scoped_user_cannot_see_other_companies_users_in_floater_mode` | `tests/Unit/CompanyScopingTest.php` | 3 | 0.10s | 🟢 **PASS** |
-| **`TC-SEC-13`** | `test_tc_sec_13_cross_company_asset_checkout_strictly_prevented` | `tests/Unit/CompanyScopingTest.php` | 5 | 0.14s | 🟢 **PASS** |
-| **`TC-SEC-14a`**| `test_tc_sec_14_null_company_scoping_matrix_across_all_models (Accessories)` | `tests/Unit/CompanyScopingTest.php` | 4 | 0.13s | 🟢 **PASS** |
-| **`TC-SEC-14b`**| `test_tc_sec_14_null_company_scoping_matrix_across_all_models (Assets)` | `tests/Unit/CompanyScopingTest.php` | 4 | 0.17s | 🟢 **PASS** |
-| **`TC-SEC-14c`**| `test_tc_sec_14_null_company_scoping_matrix_across_all_models (Components)` | `tests/Unit/CompanyScopingTest.php` | 4 | 0.16s | 🟢 **PASS** |
-| **`TC-SEC-14d`**| `test_tc_sec_14_null_company_scoping_matrix_across_all_models (Consumables)` | `tests/Unit/CompanyScopingTest.php` | 4 | 0.13s | 🟢 **PASS** |
-| **`TC-SEC-14e`**| `test_tc_sec_14_null_company_scoping_matrix_across_all_models (Departments)` | `tests/Unit/CompanyScopingTest.php` | 4 | 0.13s | 🟢 **PASS** |
-| **`TC-SEC-14f`**| `test_tc_sec_14_null_company_scoping_matrix_across_all_models (Licenses)` | `tests/Unit/CompanyScopingTest.php` | 4 | 0.13s | 🟢 **PASS** |
-| **`TC-SEC-15`** | `test_tc_sec_15_action_log_immutability_and_audit_trail_preservation` | `tests/Unit/UserTest.php` | 5 | 0.09s | 🟢 **PASS** |
-| **TỔNG CỘNG** | **Toàn bộ 15 ca kiểm thử an ninh Phân vùng 4** | — | **92 assertions** | **6.71s** | 🟢 **PASS 100%** |
+Bảng dưới đây đối chiếu 1-1 các ca kiểm thử được đặc tả trong **Mục 2.3.3.4 (Bảng 16–18)** và **Mục 4.2.4 (Bảng 19)** của `BAO_CAO_GK_Nhom05.docx` sang các phương thức thực thi tự động trong mã nguồn:
+
+| Mã trong Báo cáo GK | Nội dung đặc tả trong Báo cáo GK | Mã & Phương thức thực thi trong Mã nguồn | Tầng kiểm thử |
+| :--- | :--- | :--- | :---: |
+| **`TC-SEC-01`** | Superadmin có toàn quyền không giới hạn | `TC-SEC-01` (`UserTest::test_tc_sec_01_...`) | Unit |
+| **`TC-SEC-02`** | Chặn User thường truy cập chức năng cấm (`/hardware/create` $\rightarrow$ `403`) | `TC-SEC-02` (`UserTest`) + `TC-SEC-API-02` (`SecurityPart4ApiIntegrationTest`) | Unit + Feature |
+| **`TC-SEC-03`** | Quyền Cấm chỉ định (`-1`) đè lên Nhóm (`1`) | `TC-SEC-03` (`UserTest::test_tc_sec_03_...`) | Unit |
+| **`TC-SEC-04`** | Kế thừa hợp quyền từ nhiều nhóm | `TC-SEC-04` (`UserTest::test_tc_sec_04_...`) | Unit |
+| **`TC-SEC-05`** | Từ chối mặc định khi không quyền, không nhóm | `TC-SEC-05` (`UserTest::test_tc_sec_05_...`) | Unit |
+| **`TC-SEC-06`** | Chặn User thường gửi API `PUT /users` nâng quyền `superuser = 1` (`403`) | `TC-SEC-06` (`UserTest`) + `TC-SEC-API-02` (`SecurityPart4ApiIntegrationTest`) | Unit + Feature/API |
+| **`TC-SEC-07`** | Chặn Admin thường sửa auth field / xóa tài khoản Superadmin | `TC-SEC-07` (`UserTest`) + `TC-SEC-API-03` (`SecurityPart4ApiIntegrationTest`) | Unit + Web/API |
+| **`TC-SEC-08`** | Khóa đăng nhập Brute-force sau 5 lần nhập sai mật khẩu | `TC-SEC-API-04` (`SecurityPart4ApiIntegrationTest`) + `LoginTest` | Feature/Auth |
+| *(Mở rộng Bảo mật)* | Ranh giới mạo danh `mayImpersonate()`, tự xóa mình, khóa tạo Floater, `Actionlog`, thiếu Bearer Token (`401`) | `TC-SEC-08`, `09`, `10`, `15` (`UserTest`) + `TC-SEC-API-01`, `06` + `ImpersonateUserTest` | Unit + Feature |
+| **`TC-FMC-01`, `03`** | Cách ly tài sản & danh bạ nhân sự giữa Công ty A và B (Web/API Bearer Token) | `TC-SEC-11` (`CompanyScopingTest`) + `TC-SEC-API-05` (`SecurityPart4ApiIntegrationTest`) | Unit + Feature/API |
+| **`TC-FMC-02`** | Chặn cấp phát tài sản chéo giữa 2 công ty | `TC-SEC-13` (`CompanyScopingTest::test_tc_sec_13_...`) | Unit |
+| **`TC-FMC-04`, `05`** | Chế độ Strict Mode vs Floater Mode & Ma trận 6 Models + Pivot `company_user` | `TC-SEC-12`, `TC-SEC-14` (`CompanyScopingTest`, 6 datasets) | Unit (DataProvider) |
 
 ---
 
-## 3. TRÍCH XUẤT BẰNG CHỨNG THỰC THI (PHPUNIT TERMINAL LOGS)
+## 3. BẢNG CHI TIẾT 26 LẦN THỰC THI TRỌNG TÂM (`TC-SEC-*` & `TC-SEC-API-*`)
 
-Dưới đây là log ghi nhận trực tiếp từ phiên chạy thực tế của toàn bộ bộ test Phân vùng 4:
-
-```text
-   PASS  Tests\Unit\CompanyScopingTest
-  ✓ tc sec 11 company scoped user cannot see other companies users in strict mode                                3.18s  
-  ✓ tc sec 12 company scoped user cannot see other companies users in floater mode                               0.10s  
-  ✓ tc sec 13 cross company asset checkout strictly prevented                                                    0.14s  
-  ✓ tc sec 14 null company scoping matrix across all models with data set " accessories"                         0.13s  
-  ✓ tc sec 14 null company scoping matrix across all models with data set " assets"                              0.17s  
-  ✓ tc sec 14 null company scoping matrix across all models with data set " components"                          0.16s  
-  ✓ tc sec 14 null company scoping matrix across all models with data set " consumables"                         0.13s  
-  ✓ tc sec 14 null company scoping matrix across all models with data set " departments"                         0.13s  
-  ✓ tc sec 14 null company scoping matrix across all models with data set " licenses"                            0.13s  
-
-   PASS  Tests\Unit\UserTest
-  ✓ tc sec 01 superuser has unconditional access to all sections                                                 0.09s  
-  ✓ tc sec 02 user with granular permissions is strictly bounded                                                 0.09s  
-  ✓ tc sec 03 explicit user deny overrides group permission allow                                                0.11s  
-  ✓ tc sec 04 permissions accumulated from multiple groups                                                       0.13s  
-  ✓ tc sec 05 default deny when no permissions assigned                                                          0.09s  
-  ✓ tc sec 06 regular user cannot create or delete users via policy                                              0.09s  
-  ✓ tc sec 07 subadmin cannot modify superuser auth fields                                                       0.10s  
-  ✓ tc sec 08 impersonation boundaries enforced                                                                  0.11s  
-  ✓ tc sec 09 admin cannot delete themselves                                                                     0.09s  
-  ✓ tc sec 10 companied admin cannot grant floater status                                                        0.09s  
-  ✓ tc sec 15 action log immutability and audit trail preservation                                               0.09s  
-
-  Tests:    20 passed (92 assertions)
-  Duration: 6.71s
-```
+| Mã Ca Test | Tên Phương Thức Kiểm Thử (Method Name) | Tệp Nguồn Test | Assertions | Trạng Thái |
+| :---: | :--- | :--- | :---: | :---: |
+| **`TC-SEC-01`** | `test_tc_sec_01_superuser_has_unconditional_access_to_all_sections` | `tests/Unit/UserTest.php` | 11 | 🟢 **PASS** |
+| **`TC-SEC-02`** | `test_tc_sec_02_user_with_granular_permissions_is_strictly_bounded` | `tests/Unit/UserTest.php` | 4 | 🟢 **PASS** |
+| **`TC-SEC-03`** | `test_tc_sec_03_explicit_user_deny_overrides_group_permission_allow` | `tests/Unit/UserTest.php` | 3 | 🟢 **PASS** |
+| **`TC-SEC-04`** | `test_tc_sec_04_permissions_accumulated_from_multiple_groups` | `tests/Unit/UserTest.php` | 5 | 🟢 **PASS** |
+| **`TC-SEC-05`** | `test_tc_sec_05_default_deny_when_no_permissions_assigned` | `tests/Unit/UserTest.php` | 10 | 🟢 **PASS** |
+| **`TC-SEC-06`** | `test_tc_sec_06_regular_user_cannot_create_or_delete_users_via_policy` | `tests/Unit/UserTest.php` | 4 | 🟢 **PASS** |
+| **`TC-SEC-07`** | `test_tc_sec_07_subadmin_cannot_modify_superuser_auth_fields` | `tests/Unit/UserTest.php` | 3 | 🟢 **PASS** |
+| **`TC-SEC-08`** | `test_tc_sec_08_impersonation_boundaries_enforced` | `tests/Unit/UserTest.php` | 6 | 🟢 **PASS** |
+| **`TC-SEC-09`** | `test_tc_sec_09_admin_cannot_delete_themselves` | `tests/Unit/UserTest.php` | 5 | 🟢 **PASS** |
+| **`TC-SEC-10`** | `test_tc_sec_10_companied_admin_cannot_grant_floater_status` | `tests/Unit/UserTest.php` | 2 | 🟢 **PASS** |
+| **`TC-SEC-11`** | `test_tc_sec_11_company_scoped_user_cannot_see_other_companies_users_in_strict_mode` | `tests/Unit/CompanyScopingTest.php` | 2 | 🟢 **PASS** |
+| **`TC-SEC-12`** | `test_tc_sec_12_company_scoped_user_cannot_see_other_companies_users_in_floater_mode` | `tests/Unit/CompanyScopingTest.php` | 3 | 🟢 **PASS** |
+| **`TC-SEC-13`** | `test_tc_sec_13_cross_company_asset_checkout_strictly_prevented` | `tests/Unit/CompanyScopingTest.php` | 5 | 🟢 **PASS** |
+| **`TC-SEC-14a..f`**| `test_tc_sec_14_null_company_scoping_matrix_across_all_models` (6 datasets) | `tests/Unit/CompanyScopingTest.php` | 24 | 🟢 **PASS** |
+| **`TC-SEC-15`** | `test_tc_sec_15_action_log_immutability_and_audit_trail_preservation` | `tests/Unit/UserTest.php` | 5 | 🟢 **PASS** |
+| **`TC-SEC-API-01`** | `test_tc_sec_api_01_unauthenticated_api_request_is_rejected_with_401` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 2 | 🟢 **PASS** |
+| **`TC-SEC-API-02`** | `test_tc_sec_api_02_regular_user_blocked_from_admin_routes_and_privilege_escalation` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 5 | 🟢 **PASS** |
+| **`TC-SEC-API-03`** | `test_tc_sec_api_03_admin_cannot_delete_superadmin_via_web_or_api` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 7 | 🟢 **PASS** |
+| **`TC-SEC-API-04`** | `test_tc_sec_api_04_login_brute_force_lockout_enforced_after_max_attempts` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 13 | 🟢 **PASS** |
+| **`TC-SEC-API-05`** | `test_tc_sec_api_05_fmcs_api_bearer_token_isolates_users_and_assets_across_companies` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 8 | 🟢 **PASS** |
+| **`TC-SEC-API-06`** | `test_tc_sec_api_06_impersonation_feature_flow_and_k16_mysql_container_proof` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 8 | 🟢 **PASS** |
+| **HỒI QUY ĐẦY ĐỦ** | **Toàn bộ 5 tệp trong `phpunit.part4.xml` (K16 MySQL 8.0.36)** | — | **443 assertions (115 tests)** | 🟢 **PASS 100%** |
 
 ---
 

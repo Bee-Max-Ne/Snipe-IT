@@ -46,37 +46,37 @@ php artisan key:generate --env=testing
 
 ## 3. CÁC CÁCH KÍCH HOẠT KIỂM THỬ (TEST EXECUTION MODES)
 
-### Cách 1: Chạy tự động nhanh bằng 1 cú nhấp (Windows)
-Chạy trực tiếp file batch đã đóng gói sẵn:
-```cmd
-run_part4_tests.bat
-```
-Hoặc chạy bằng PowerShell kèm lưu vết log tự động:
+### Cách 1: Chạy tự động qua K16 Testcontainers trên Windows (Khuyên dùng)
+Đảm bảo Docker Desktop đang bật, sau đó chạy trực tiếp script đã chuẩn hóa:
 ```powershell
+# Chạy toàn bộ 115 tests (Unit + Feature/API Integration) trên Docker MySQL 8.0.36
 .\run_part4_tests.ps1
-```
 
-### Cách 2: Chạy trực tiếp qua lệnh Artisan PHPUnit
+# Hoặc chạy nhanh 26 lượt kiểm thử an ninh trọng tâm (TC-SEC-* & TC-SEC-API-*)
+.\run_part4_tests.ps1 -Filter test_tc_sec_
+```
+*(Nếu máy chưa bật Docker và cần chạy nhanh bằng PHPUnit cục bộ, thêm cờ `-FallbackLocal`.)*
+
+### Cách 2: Chạy trực tiếp qua lệnh K16 Testcontainers (`tests/testcontainers/run.mjs`)
+Lệnh này tự động kéo image `mysql:8.0.36`, khởi tạo container + database ngẫu nhiên + cặp khóa RSA Passport động, chạy `phpunit.part4.xml` và hủy container sạch sẽ ở khối `finally`:
 ```bash
-php artisan test --filter=test_tc_sec_
-```
-*Kết quả kỳ vọng:* Toàn bộ **20/20 test executions** (tương ứng 15 test cases) đều báo màu xanh lá cây (**PASS 100%**) với **92 assertions** hợp lệ.
+# Trên Linux / macOS (ép pdo_mysql dùng TCP thay cho Unix socket)
+TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 node tests/testcontainers/run.mjs -c phpunit.part4.xml
 
-### Cách 3: Chạy trên CSDL thực nghiệm K16 Testcontainers (MySQL 8.0.36)
-Lệnh này sẽ tự động tải image Docker `mysql:8.0.36`, khởi tạo container độc lập ngẫu nhiên, chạy toàn bộ 15 testcase và tự động hủy container sau khi hoàn tất:
-```bash
-npm run test:integration:testcontainers -- tests/Unit --filter=test_tc_sec_
+# Trên Windows PowerShell
+$env:PHP_BINARY = (Get-Command php).Source
+node tests/testcontainers/run.mjs -c phpunit.part4.xml
 ```
 
-### Cách 4: Đóng gói và thu thập bằng chứng kiểm thử (Artifact Packaging)
+### Cách 3: Đóng gói và thu thập bằng chứng kiểm thử chuẩn công nghiệp (Artifact Packaging)
 ```powershell
-.\export_evidence.ps1
+.\export_evidence.ps1 -Filter test_tc_sec_
 ```
-*Kết quả:* Toàn bộ log thực thi và file lịch sử commit sẽ được nén tự động vào thư mục `storage/logs/artifacts/Evidence_PhanVung4_[timestamp].zip`.
+*Kết quả:* Toàn bộ bằng chứng trong `storage/logs/test-reports/` (`junit_part4_report.xml`, `phpunit_part4_execution.log`, `testdox.html`, `mysql_container_proof.json`, `environment_metadata.json`, `git_commit_evidence.txt`, `SUMMARY_REPORT.md`, `checksums.sha256`) được nén tự động vào `storage/logs/artifacts/Evidence_PhanVung4_v1.0.zip`.
 
 ---
 
-## 4. MA TRẬN 15 CA KIỂM THỬ AN NINH (PHÂN VÙNG 4)
+## 4. MA TRẬN CA KIỂM THỬ AN NINH & TÍCH HỢP PHÂN VÙNG 4
 
 | Mã Ca Test | Tên Kịch Bản Kiểm Thử | Tệp Nguồn Test | Mục Tiêu & Ranh Giới An Ninh | Kết Quả |
 | :---: | :--- | :--- | :--- | :---: |
@@ -95,6 +95,12 @@ npm run test:integration:testcontainers -- tests/Unit --filter=test_tc_sec_
 | **`TC-SEC-13`** | `test_tc_sec_13_cross_company_asset_checkout_strictly_prevented` | `tests/Unit/CompanyScopingTest.php` | Cấm bàn giao tài sản Công ty A cho nhân sự Công ty B (`canCheckoutTo`). | **PASS** |
 | **`TC-SEC-14`** | `test_tc_sec_14_null_company_scoping_matrix_across_all_models` | `tests/Unit/CompanyScopingTest.php` | Kiểm thử bao quát 6 models: Accessories, Assets, Components, Consumables, Departments, Licenses. | **PASS** |
 | **`TC-SEC-15`** | `test_tc_sec_15_action_log_immutability_and_audit_trail_preservation` | `tests/Unit/UserTest.php` | Tính bất biến của `action_logs`, không mất dấu kiểm toán kể cả khi đối tượng bị xóa. | **PASS** |
+| **`TC-SEC-API-01`** | `test_tc_sec_api_01_unauthenticated_api_request_is_rejected_with_401` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Chặn request API thiếu Passport Bearer Token với HTTP `401 Unauthorized`. | **PASS** |
+| **`TC-SEC-API-02`** | `test_tc_sec_api_02_regular_user_blocked_from_admin_routes_and_privilege_escalation` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Chặn `/hardware/create` (`403`) và chặn tự gán `superuser=1` qua `PUT /api/v1/users`. | **PASS** |
+| **`TC-SEC-API-03`** | `test_tc_sec_api_03_admin_cannot_delete_superadmin_via_web_or_api` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Ngăn Admin thường xóa tài khoản Superadmin qua Web & API. | **PASS** |
+| **`TC-SEC-API-04`** | `test_tc_sec_api_04_login_brute_force_lockout_enforced_after_max_attempts` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Khóa đăng nhập Brute-force sau 5 lần sai mật khẩu (`login_attempts` + `ThrottlesLogins`). | **PASS** |
+| **`TC-SEC-API-05`** | `test_tc_sec_api_05_fmcs_api_bearer_token_isolates_users_and_assets_across_companies` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Cô lập nhân sự và tài sản đa công ty qua Passport Bearer Token API. | **PASS** |
+| **`TC-SEC-API-06`** | `test_tc_sec_api_06_impersonation_feature_flow_and_k16_mysql_container_proof` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Luồng HTTP Impersonation + `Actionlog` + xuất `mysql_container_proof.json` (MySQL 8.0.36). | **PASS** |
 
 ---
 
