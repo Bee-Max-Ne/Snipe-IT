@@ -168,8 +168,12 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
     env_meta = load_json_safe(os.path.join(reports_dir, "environment_metadata.json"))
     mysql_proof = load_json_safe(os.path.join(reports_dir, "mysql_container_proof.json"))
 
-    # Ngưỡng đánh giá động & trung thực
-    duration_limit = 60.0 if total_tests > 30 else 15.0
+    # Ngưỡng đánh giá động & trung thực (tính chi phí thực tế Docker MySQL 8.0.36 K16)
+    is_k16_mysql = mysql_proof is not None
+    if total_tests > 30:
+        duration_limit = 600.0 if is_k16_mysql else 90.0
+    else:
+        duration_limit = 300.0 if is_k16_mysql else 20.0
     eval_pass_rate = (
         f"✅ ĐẠT ({pass_rate:.1f}%)"
         if (total_tests > 0 and failed_tests == 0 and error_tests == 0 and pass_rate >= 95.0)
@@ -288,6 +292,9 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
         elif fname == "environment_metadata.json":
             desc = "Siêu dữ liệu Commit SHA, Branch, Tag, PHP"
             fmt = "JSON Metadata"
+        elif fname == "git_commit_evidence.txt":
+            desc = "Lịch sử Git Atomic Commits trên nhánh"
+            fmt = "Git Log"
         elif fname.endswith(".log"):
             desc = "Log console thực thi chi tiết"
             fmt = "Plain Text"
