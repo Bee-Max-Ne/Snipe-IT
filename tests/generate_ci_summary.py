@@ -3,18 +3,18 @@
 """
 Trích xuất tự động chỉ số kiểm thử chuẩn công nghiệp (Gold Standard) cho Phân vùng 4 (Snipe-IT).
 Hỗ trợ:
-- Machine-Readable JUnit XML parser (IEEE/CI standard)
-- Machine-Readable Clover XML coverage parser (PCOV engine metrics)
-- Visual HTML Code Coverage & TestDox packaging
+- Machine-Readable JUnit XML parser (đọc đệ quy mọi testsuite/testcase, kiểm tra fail/error thật)
+- Machine-Readable Clover XML coverage parser (kiểm tra ngưỡng >= 80% thật, không gán cứng)
+- Đọc bằng chứng môi trường (environment_metadata.json & mysql_container_proof.json)
 - Tự động sinh mã băm toàn vẹn SHA-256 (Anti-tamper Checksums)
 - Tự động đóng gói ZIP Artifacts nghiệm thu đệ quy
-- Xuất bản Executive Dashboard động vào GitHub Actions Summary
 Tác giả: Nguyễn Thành Minh (MSSV: 2312691) - Phân vùng 4 (Snipe-IT)
 """
 
 import sys
 import os
 import re
+import json
 import hashlib
 import zipfile
 import xml.etree.ElementTree as ET
@@ -26,6 +26,7 @@ if hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+
 def calculate_sha256(filepath):
     """Tính mã băm SHA-256 cho tệp tin."""
     h = hashlib.sha256()
@@ -34,6 +35,17 @@ def calculate_sha256(filepath):
             h.update(chunk)
     return h.hexdigest()
 
+
+def load_json_safe(path):
+    if path and os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to read JSON {path}: {e}", file=sys.stderr)
+    return None
+
+
 def generate_summary(log_path, output_summary_path, junit_path=None):
     reports_dir = os.path.dirname(log_path) if log_path else "storage/logs/test-reports"
     if not junit_path:
@@ -41,53 +53,78 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
         if os.path.exists(junit_candidate):
             junit_path = junit_candidate
 
-    passed_tests = 20
-    total_assertions = 92
-    duration_sec = 5.8
+    total_tests = 0
+    passed_tests = 0
+    failed_tests = 0
+    error_tests = 0
+    skipped_tests = 0
+    total_assertions = 0
+    duration_sec = 0.0
     test_cases_data = []
 
-    # 1. Ưu tiên đọc từ chuẩn máy đọc JUnit XML
+    # 1. Đọc từ chuẩn máy đọc JUnit XML (tính toán thật từ XML, không fallback gán cứng nếu XML tồn tại)
     if junit_path and os.path.exists(junit_path):
         try:
             tree = ET.parse(junit_path)
             root = tree.getroot()
             suite = root.find("testsuite")
             if suite is not None:
-                passed_tests = int(suite.attrib.get("tests", 20)) - int(suite.attrib.get("failures", 0)) - int(suite.attrib.get("errors", 0))
-                total_assertions = int(suite.attrib.get("assertions", 92))
-                duration_sec = float(suite.attrib.get("time", 5.8))
-                
+                total_tests = int(suite.attrib.get("tests", 0))
+                failed_tests = int(suite.attrib.get("failures", 0))
+                error_tests = int(suite.attrib.get("errors", 0))
+                skipped_tests = int(suite.attrib.get("skipped", 0))
+                passed_tests = max(0, total_tests - failed_tests - error_tests - skipped_tests)
+                total_assertions = int(suite.attrib.get("assertions", 0))
+                duration_sec = float(suite.attrib.get("time", 0.0))
+
                 for tc in suite.iter("testcase"):
-                    tc_name = tc.attrib.get("name", "").replace("test_", "").replace("_", " ")
+                    raw_name = tc.attrib.get("name", "")
+                    tc_name = raw_name.replace("test_", "").replace("_", " ")
                     tc_time = float(tc.attrib.get("time", 0.0))
-                    tc_assert = int(tc.attrib.get("assertions", 1))
-                    test_cases_data.append((tc_name, f"{tc_time:.2f}s", tc_assert))
+                    tc_assert = int(tc.attrib.get("assertions", 0))
+                    has_failure = tc.find("failure") is not None
+                    has_error = tc.find("error") is not None
+                    has_skip = tc.find("skipped") is not None
+                    if has_failure:
+                        status = "❌ FAIL"
+                    elif has_error:
+                        status = "💥 ERROR"
+                    elif has_skip:
+                        status = "⏭️ SKIP"
+                    else:
+                        status = "✅ PASS"
+                    is_sec_case = raw_name.startswith("test_tc_sec_")
+                    test_cases_data.append((tc_name, f"{tc_time:.2f}s", tc_assert, status, is_sec_case))
         except Exception as e:
             print(f"Warning: Failed to parse JUnit XML: {e}", file=sys.stderr)
 
-    # 2. Đọc file text log để fallback
+    # 2. Đọc file text log để fallback nếu chưa có JUnit XML và lấy PCOV text summary
     log_content = ""
-    if os.path.exists(log_path):
+    if log_path and os.path.exists(log_path):
         with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
             log_content = f.read()
 
-    if not test_cases_data and log_content:
-        tests_match = re.search(r'Tests:\s+(\d+)\s+passed\s+\((\d+)\s+assertions\)', log_content)
+    if total_tests == 0 and log_content:
+        ok_match = re.search(r'OK\s+\((\d+)\s+tests?,\s+(\d+)\s+assertions?\)', log_content)
+        artisan_match = re.search(r'Tests:\s+(\d+)\s+passed\s+\((\d+)\s+assertions\)', log_content)
+        time_match = re.search(r'Time:\s+\d+:([\d\.]+)', log_content)
         duration_match = re.search(r'Duration:\s+([\d\.]+)s', log_content)
-        if tests_match:
-            passed_tests = int(tests_match.group(1))
-            total_assertions = int(tests_match.group(2))
-        if duration_match:
+        if ok_match:
+            total_tests = passed_tests = int(ok_match.group(1))
+            total_assertions = int(ok_match.group(2))
+        elif artisan_match:
+            total_tests = passed_tests = int(artisan_match.group(1))
+            total_assertions = int(artisan_match.group(2))
+        if time_match:
+            duration_sec = float(time_match.group(1))
+        elif duration_match:
             duration_sec = float(duration_match.group(1))
 
-        test_lines = re.findall(r'(?:✓|Γ£ô|\*)\s+(tc\s+sec\s+\d+[^0-9\n\r]+)\s+([\d\.]+)s', log_content)
-        for tc_name, tc_time in test_lines:
-            test_cases_data.append((tc_name.strip(), f"{float(tc_time):.2f}s", 4))
+    pass_rate = (passed_tests / total_tests * 100.0) if total_tests > 0 else 0.0
 
-    pass_rate = 100.0 if passed_tests > 0 else 0.0
-
-    # 3. Trích xuất Code Coverage từ Clover XML nếu có
-    line_coverage = "> 95.0%"
+    # 3. Trích xuất Code Coverage thật từ Clover XML (hoặc text log), đánh giá ngưỡng >= 80% thật
+    clover_line_cov = None
+    line_coverage_display = "Chưa đo (Không có driver PCOV/Xdebug)"
     methods_cov_val = None
     classes_cov_val = None
     clover_path = os.path.join(reports_dir, "coverage_clover.xml")
@@ -106,13 +143,13 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
                     covered_methods = int(metrics.attrib.get("coveredmethods", 0))
                     classes = int(metrics.attrib.get("classes", 0))
                     if stmts > 0:
-                        clover_line_cov = (covered_stmts / stmts) * 100
-                        line_coverage = f"{clover_line_cov:.1f}% ({covered_stmts}/{stmts} statements)"
+                        clover_line_cov = (covered_stmts / stmts) * 100.0
+                        line_coverage_display = f"{clover_line_cov:.1f}% ({covered_stmts}/{stmts} statements)"
                     if methods > 0:
-                        clover_method_cov = (covered_methods / methods) * 100
+                        clover_method_cov = (covered_methods / methods) * 100.0
                         methods_cov_val = f"{clover_method_cov:.1f}% ({covered_methods}/{methods} methods)"
                     if classes > 0:
-                        classes_cov_val = f"100.0% ({classes}/{classes} classes)"
+                        classes_cov_val = f"{classes} files/classes scoped"
         except Exception as e:
             print(f"Warning: Failed to parse Clover XML: {e}", file=sys.stderr)
     elif log_content:
@@ -120,80 +157,117 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
         classes_cov_match = re.search(r'Classes:\s+([\d\.]+)%', log_content)
         methods_cov_match = re.search(r'Methods:\s+([\d\.]+)%', log_content)
         if lines_cov_match:
-            line_coverage = lines_cov_match.group(1) + "%"
+            clover_line_cov = float(lines_cov_match.group(1))
+            line_coverage_display = f"{clover_line_cov:.1f}%"
         if classes_cov_match:
             classes_cov_val = classes_cov_match.group(1) + "%"
         if methods_cov_match:
             methods_cov_val = methods_cov_match.group(1) + "%"
 
-    # 4. Tính toán SHA-256 Checksum cho các tệp trong thư mục reports
-    checksum_lines = []
-    checksum_file = os.path.join(reports_dir, "checksums.sha256")
-    files_to_hash = []
-    
-    if os.path.exists(reports_dir):
-        for fname in sorted(os.listdir(reports_dir)):
-            fpath = os.path.join(reports_dir, fname)
-            if os.path.isfile(fpath) and fname != "checksums.sha256":
-                fhash = calculate_sha256(fpath)
-                checksum_lines.append(f"{fhash}  {fname}")
-                files_to_hash.append((fname, fhash))
-                
-        with open(checksum_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(checksum_lines) + "\n")
-        print(f"Đã tạo mã băm SHA-256 tại: {checksum_file}")
+    # Đọc metadata môi trường & bằng chứng container MySQL K16
+    env_meta = load_json_safe(os.path.join(reports_dir, "environment_metadata.json"))
+    mysql_proof = load_json_safe(os.path.join(reports_dir, "mysql_container_proof.json"))
 
-    # 5. Đóng gói Artifacts ZIP chuẩn nghiệm thu đệ quy (bao gồm cả thư mục coverage-html)
-    artifacts_dir = "storage/logs/artifacts"
-    os.makedirs(artifacts_dir, exist_ok=True)
-    zip_output_path = os.path.join(artifacts_dir, "Evidence_PhanVung4_v1.0.zip")
-    with zipfile.ZipFile(zip_output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        if os.path.exists(reports_dir):
-            for root, dirs, files in os.walk(reports_dir):
-                for file in files:
-                    full_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(full_path, reports_dir)
-                    zipf.write(full_path, arcname=rel_path)
-    print(f"Đã đóng gói bằng chứng vào: {zip_output_path}")
+    # Ngưỡng đánh giá động & trung thực
+    duration_limit = 60.0 if total_tests > 30 else 15.0
+    eval_pass_rate = (
+        f"✅ ĐẠT ({pass_rate:.1f}%)"
+        if (total_tests > 0 and failed_tests == 0 and error_tests == 0 and pass_rate >= 95.0)
+        else f"❌ KHÔNG ĐẠT ({passed_tests}/{total_tests} passed, {failed_tests} fail, {error_tests} error)"
+    )
+    eval_assertions = (
+        f"✅ VƯỢT CHỈ TIÊU ({total_assertions} >= 50)"
+        if total_assertions >= 50
+        else f"❌ CHƯA ĐẠT ({total_assertions} < 50)"
+    )
+    eval_duration = (
+        f"✅ ĐẠT HIỆU NĂNG ({duration_sec:.2f}s <= {duration_limit:.0f}s)"
+        if (duration_sec > 0 and duration_sec <= duration_limit)
+        else f"⚠️ VƯỢT NGƯỠNG ({duration_sec:.2f}s > {duration_limit:.0f}s)"
+    )
+    if clover_line_cov is not None:
+        eval_coverage = (
+            f"✅ ĐẠT NGƯỠNG ({clover_line_cov:.1f}% >= 80%)"
+            if clover_line_cov >= 80.0
+            else f"⚠️ DƯỚI NGƯỠNG PHỦ TOÀN FILE ({clover_line_cov:.1f}% < 80%)"
+        )
+    else:
+        eval_coverage = "⚠️ KHÔNG CÓ DRIVER COVERAGE (Chạy trên CI PCOV để đo)"
 
-    # Đánh giá tự động theo ngưỡng (Threshold Evaluation)
-    eval_pass_rate = "✅ VƯỢT CHỈ TIÊU (100%)" if pass_rate >= 95.0 else "❌ KHÔNG ĐẠT"
-    eval_assertions = f"✅ VƯỢT CHỈ TIÊU ({total_assertions} / 50)" if total_assertions >= 50 else "❌ THIẾU ASSERTIONS"
-    eval_duration = f"✅ ĐẠT HIỆU NĂNG ({duration_sec:.2f}s <= 15s)" if duration_sec <= 15.0 else f"⚠️ VƯỢT NGƯỠNG ({duration_sec:.2f}s > 15s)"
-    eval_coverage = f"✅ ĐẠT NGƯỠNG AN NINH ({line_coverage})"
+    open_defects_count = failed_tests + error_tests
+    eval_defects = "✅ ZERO FAILURE" if open_defects_count == 0 else f"❌ CÓ {open_defects_count} LỖI CẦN XỬ LÝ"
 
     now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+    commit_info = f"`{env_meta.get('git_commit_short', 'N/A')}` (Branch: `{env_meta.get('git_branch', 'N/A')}`)" if env_meta else "`N/A`"
+    db_info = (
+        f"K16 Testcontainers MySQL `{mysql_proof.get('mysql_server_version', '8.0.36')}` (DB: `{mysql_proof.get('db_database')}`, Port: `{mysql_proof.get('db_port')}`)"
+        if mysql_proof
+        else (env_meta.get('execution_mode', 'Local PHPUnit') if env_meta else 'Local PHPUnit')
+    )
 
-    # 6. Khởi tạo Báo cáo Markdown
+    # 4. Xây dựng nội dung Markdown trước khi hash & đóng gói
     markdown = []
     markdown.append("# 🛡️ BÁO CÁO KIỂM THỬ CHUẨN CÔNG NGHIỆP: PHÂN VÙNG 4 (SNIPE-IT)")
     markdown.append(f"**Sinh viên thực hiện:** Nguyễn Thành Minh (MSSV: `2312691`) — Nhóm 05  ")
-    markdown.append(f"**Phân vùng:** Module Người dùng (`Users`), Phân quyền RBAC, An ninh `UserPolicy`, Đa công ty FMCS & `Actionlog`  ")
-    markdown.append(f"**Môi trường:** K16 Testcontainers (MySQL 8.0.36 Ephemeral Docker Container)  ")
-    markdown.append(f"**Chuẩn lưu trữ bằng chứng:** IEEE 829 & JUnit XML / Clover XML / HTML Coverage / SHA-256 Checksums  ")
-    markdown.append(f"**Thời điểm đo tự động từ CI/CD:** `{now_utc}`  \n")
+    markdown.append(f"**Phân vùng:** Module Người dùng (`Users`), Phân quyền RBAC, An ninh `UserPolicy`, Đa công ty FMCS & Auth/API Integration  ")
+    markdown.append(f"**Phiên bản mã nguồn (Commit):** {commit_info}  ")
+    markdown.append(f"**Môi trường CSDL thực thi:** {db_info}  ")
+    markdown.append(f"**Thời điểm đo tự động:** `{now_utc}`  \n")
     markdown.append("---")
     markdown.append("\n## 1. 📊 Bảng Chỉ Số Thực Nghiệm Đo Đạc Tự Động (Auto-Calculated Metrics)")
     markdown.append("\n| Chỉ số đo lường | Ngưỡng cam kết (Threshold) | Giá trị thực tế đo từ Runner | Đánh giá tự động |")
     markdown.append("| :--- | :---: | :---: | :---: |")
-    markdown.append(f"| **Tỷ lệ Pass Rate** | $\\ge 95\\%$ | **{pass_rate:.1f}%** ({passed_tests}/{passed_tests} tests) | {eval_pass_rate} |")
+    markdown.append(f"| **Tỷ lệ Pass Rate** | $\\ge 95\\%$ (0 fail) | **{pass_rate:.1f}%** ({passed_tests}/{total_tests} tests) | {eval_pass_rate} |")
     markdown.append(f"| **Tổng số Assertions** | $\\ge 50$ assertions | **{total_assertions} assertions** | {eval_assertions} |")
-    markdown.append(f"| **Độ bao phủ dòng (Code Coverage)** | $\\ge 80\\%$ (Quy chế môn học) | **{line_coverage}** | {eval_coverage} |")
-    markdown.append(f"| **Thời gian thực thi (Performance)** | $\\le 15.0$ giây | **{duration_sec:.2f} giây** | {eval_duration} |")
-    markdown.append("| **Bộ nhớ tiêu thụ (Memory Ceiling)** | $\\le 500$ MB | **~88 MB** | ✅ CỰC KỲ TỐI ƯU |")
-    markdown.append("| **Khuyết tật mở (Open Defects)** | 0 lỗi | **0 lỗi (Zero Failure)** | ✅ CHẤT LƯỢNG HOÀN HẢO |\n")
+    markdown.append(f"| **Độ bao phủ dòng (PCOV / Clover)** | $\\ge 80\\%$ trên mã nguồn phạm vi | **{line_coverage_display}** | {eval_coverage} |")
+    markdown.append(f"| **Thời gian thực thi (Performance)** | $\\le {duration_limit:.0f}.0$ giây | **{duration_sec:.2f} giây** | {eval_duration} |")
+    markdown.append(f"| **Thất bại / Lỗi thực thi** | 0 lỗi | **{open_defects_count} lỗi** ({failed_tests} failures, {error_tests} errors) | {eval_defects} |\n")
 
     if classes_cov_val or methods_cov_val:
         markdown.append("### 📈 Chi tiết Đo Lường Độ Bao Phủ từ PCOV Engine & Clover XML")
         if classes_cov_val:
-            markdown.append(f"- **Classes Covered:** `{classes_cov_val}`")
+            markdown.append(f"- **Scope:** `{classes_cov_val}`")
         if methods_cov_val:
             markdown.append(f"- **Methods Covered:** `{methods_cov_val}`")
-        markdown.append(f"- **Statements Covered:** `{line_coverage}`\n")
+        markdown.append(f"- **Statements Covered:** `{line_coverage_display}`\n")
+
+    sec_cases = [tc for tc in test_cases_data if tc[4]]
+    other_count = len(test_cases_data) - len(sec_cases)
 
     markdown.append("---")
-    markdown.append("\n## 2. 🗄️ Cấu Trúc Bằng Chứng Kiểm Thử & Tính Toàn Vẹn (Integrity Checksums)")
-    markdown.append("\n| Tên tệp tin bằng chứng | Chuẩn kỹ thuật | Mục đích sử dụng | Mã băm SHA-256 (Chống giả mạo) |")
+    markdown.append("\n## 2. ⏱️ Danh Sách Ca Kiểm Thử Trọng Tâm Phân Vùng 4 (`TC-SEC-*` & `TC-SEC-API-*`)")
+    if other_count > 0:
+        markdown.append(f"> *(Ngoài **{len(sec_cases)} lần thực thi `TC-SEC-*` / `TC-SEC-API-*`**, suite còn chạy hồi quy **{other_count} tests** thuộc `UserTest`, `CompanyScopingTest`, `ImpersonateUserTest`, `LoginTest` — tổng cộng **{total_tests} tests / {total_assertions} assertions**.)*\n")
+    markdown.append("\n| STT | Tên Ca Kiểm Thử | Assertions | Thời gian thực tế | Kết quả |")
+    markdown.append("| :---: | :--- | :---: | :---: | :---: |")
+
+    display_cases = sec_cases if sec_cases else test_cases_data
+    if display_cases:
+        for idx, (tc_name, tc_time, tc_assert, tc_status, _) in enumerate(display_cases, 1):
+            markdown.append(f"| {idx:02d} | `{tc_name}` | **{tc_assert}** | **{tc_time}** | {tc_status} |")
+    else:
+        markdown.append("| - | *Chưa ghi nhận dữ liệu testcase từ XML/Log* | **0** | **0.00s** | ⚠️ N/A |")
+
+    # 5. Tính toán SHA-256 Checksum cho các tệp bằng chứng (không tự hash chính checksums.sha256)
+    checksum_lines = []
+    checksum_file = os.path.join(reports_dir, "checksums.sha256")
+    files_to_hash = []
+
+    if os.path.exists(reports_dir):
+        for fname in sorted(os.listdir(reports_dir)):
+            fpath = os.path.join(reports_dir, fname)
+            if os.path.isfile(fpath) and fname not in ("checksums.sha256", "SUMMARY_REPORT.md"):
+                fhash = calculate_sha256(fpath)
+                checksum_lines.append(f"{fhash}  {fname}")
+                files_to_hash.append((fname, fhash))
+
+        with open(checksum_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(checksum_lines) + "\n")
+        print(f"Đã tạo mã băm SHA-256 tại: {checksum_file}")
+
+    markdown.append("\n---")
+    markdown.append("\n## 3. 🗄️ Cấu Trúc Bằng Chứng Kiểm Thử & Chữ Ký Toàn Vẹn (SHA-256)")
+    markdown.append("\n| Tên tệp tin bằng chứng | Chuẩn kỹ thuật | Mục đích sử dụng | Mã băm SHA-256 |")
     markdown.append("| :--- | :--- | :--- | :--- |")
 
     for fname, fhash in files_to_hash:
@@ -203,65 +277,55 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
             desc = "Đo độ bao phủ dòng/hàm chuẩn máy đọc"
             fmt = "Clover XML"
         elif fname.endswith(".xml") and "junit" in fname:
-            desc = "Báo cáo ma trận 20 testcases máy đọc"
+            desc = "Báo cáo ma trận testcases chuẩn máy đọc"
             fmt = "JUnit XML"
         elif fname.endswith(".html"):
-            desc = "Báo cáo tài liệu kiểm thử giao diện HTML"
+            desc = "Báo cáo tài liệu kiểm thử HTML"
             fmt = "TestDox HTML"
+        elif fname == "mysql_container_proof.json":
+            desc = "Chứng minh kết nối Docker MySQL 8.0.36 thật"
+            fmt = "JSON Proof"
+        elif fname == "environment_metadata.json":
+            desc = "Siêu dữ liệu Commit SHA, Branch, Tag, PHP"
+            fmt = "JSON Metadata"
         elif fname.endswith(".log"):
-            desc = "Log console chi tiết"
+            desc = "Log console thực thi chi tiết"
             fmt = "Plain Text"
-        elif fname.endswith(".sha256"):
-            desc = "Chữ ký số toàn vẹn"
-            fmt = "Checksums"
         markdown.append(f"| `{fname}` | `{fmt}` | {desc} | `{fhash[:16]}...{fhash[-8:]}` |")
 
-    has_html_dir = os.path.exists(os.path.join(reports_dir, "coverage-html"))
-    if has_html_dir:
-        markdown.append("| `coverage-html/` | `Visual HTML Dashboard` | Giao diện web tương tác dòng code xanh/đỏ | `Thư mục Web đính kèm` |")
+    if os.path.exists(os.path.join(reports_dir, "coverage-html")):
+        markdown.append("| `coverage-html/` | `Visual HTML Dashboard` | Giao diện web tô màu từng dòng mã nguồn | `Thư mục Web đính kèm` |")
 
-    markdown.append(f"\n> 📦 **Gói nén tổng hợp:** `storage/logs/artifacts/Evidence_PhanVung4_v1.0.zip` đã được tự động đóng gói đệ quy (chứa trọn bộ cả thư mục `coverage-html/` và các file XML) và đính kèm trên mục Artifacts của GitHub Actions.")
-
-    markdown.append("\n---")
-    markdown.append("\n## 3. ⏱️ Danh Sách 20 Test Executions Đo Đạc Từ JUnit XML")
-    markdown.append("\n| STT | Tên Test Case & Nội dung an ninh | Assertions | Thời gian thực tế | Kết quả |")
-    markdown.append("| :---: | :--- | :---: | :---: | :---: |")
-
-    if test_cases_data:
-        for idx, (tc_name, tc_time, tc_assert) in enumerate(test_cases_data, 1):
-            markdown.append(f"| {idx:02d} | `{tc_name}` | **{tc_assert}** | **{tc_time}** | ✅ PASS |")
-    else:
-        markdown.append("| - | *Tất cả 15 Test Cases (`TC-SEC-01` -> `TC-SEC-15`)* | **92** | **~5.8s** | ✅ PASS |")
-
-    markdown.append("\n---")
-    markdown.append("\n## 4. 🎯 Đối Soát Độ Bao Phủ Mã Nguồn (Code Coverage Mapping)")
-    markdown.append("\n| Hàm / Lớp hạt nhân Phân vùng 4 | Nhánh Logic kiểm thử (Decision Branches Covered) | Test Case tương ứng | Tỷ lệ phủ |")
-    markdown.append("| :--- | :--- | :---: | :---: |")
-    markdown.append("| `User::hasAccess()` | Superuser bypass, Explicit Deny (-1), Granular Allow (1), Group Inherit, Default Deny | `TC-SEC-01` đến `TC-SEC-05` | **100%** |")
-    markdown.append("| `UserPolicy` & Gate `canEditAuthFields` | Chống tạo/xóa user trái phép; Chặn Sub-admin & Admin sửa Superadmin | `TC-SEC-06`, `TC-SEC-07` | **100%** |")
-    markdown.append("| `User::mayImpersonate()` | 5 Guard Clauses chống mạo danh chéo, mạo danh Superadmin | `TC-SEC-08` | **100%** |")
-    markdown.append("| `DeleteUserRequest` | Chặn Admin tự xóa tài khoản chính mình (`notIn([auth()->id()])`) | `TC-SEC-09` | **100%** |")
-    markdown.append("| `User::canGrantFloaterStatus()` | Chặn Admin chi nhánh cấp quyền Floater toàn tập đoàn | `TC-SEC-10` | **100%** |")
-    markdown.append("| `CompanyableScope` & Matrix | Cô lập CSDL đa công ty (Strict/Floater, Subquery pivot, 6 Models) | `TC-SEC-11`, `12`, `14` | **100%** |")
-    markdown.append("| `CompanyableTrait::canCheckoutTo()` | Chặn bàn giao tài sản xuyên công ty (Cross-company checkout) | `TC-SEC-13` | **100%** |")
-    markdown.append("| Model `Actionlog` | Tính bất biến (Immutability), bảo toàn nhật ký kiểm toán | `TC-SEC-15` | **100%** |")
-
-    markdown.append("\n---")
-    markdown.append("\n## 5. 🔍 4 Lỗ Hổng / Khuyết Tật An Ninh Đã Được Ngăn Ngừa (RCA)")
-    markdown.append("* **DEFECT-SEC-01 (Ticket 56305):** Lỗ hổng rò rỉ dữ liệu qua subquery pivot `company_user` $\\rightarrow$ Khóa chặt bởi `TC-SEC-12`.")
-    markdown.append("* **DEFECT-SEC-02:** Leo thang đặc quyền gán trạng thái Floater cấp tập đoàn $\\rightarrow$ Khóa chặt bởi `TC-SEC-10`.")
-    markdown.append("* **DEFECT-SEC-03:** Bất nhất phân quyền khi Deny bị Allow đè $\\rightarrow$ Khóa chặt bởi `TC-SEC-03`.")
-    markdown.append("* **DEFECT-SEC-04:** Lỗ hổng mạo danh chéo gây mất dấu kiểm toán $\\rightarrow$ Khóa chặt bởi `TC-SEC-08`.\n")
+    markdown.append("\n> 📦 **Gói nén tổng hợp:** `storage/logs/artifacts/Evidence_PhanVung4_v1.0.zip` chứa trọn bộ các tệp trên để nghiệm thu.\n")
 
     summary_text = "\n".join(markdown) + "\n"
 
-    if output_summary_path:
+    # Luôn lưu thêm bản sao tại storage/logs/test-reports/SUMMARY_REPORT.md
+    local_summary_path = os.path.join(reports_dir, "SUMMARY_REPORT.md")
+    os.makedirs(reports_dir, exist_ok=True)
+    with open(local_summary_path, "w", encoding="utf-8") as f:
+        f.write(summary_text)
+
+    if output_summary_path and os.path.abspath(output_summary_path) != os.path.abspath(local_summary_path):
         with open(output_summary_path, "a", encoding="utf-8") as f:
             f.write(summary_text)
         print(f"Đã xuất bản Dashboard động vào: {output_summary_path}")
     else:
-        sys.stdout.reconfigure(encoding='utf-8')
         print(summary_text)
+
+    # 6. Đóng gói Artifacts ZIP đệ quy sau khi hoàn tất tất cả các file
+    artifacts_dir = "storage/logs/artifacts"
+    os.makedirs(artifacts_dir, exist_ok=True)
+    zip_output_path = os.path.join(artifacts_dir, "Evidence_PhanVung4_v1.0.zip")
+    with zipfile.ZipFile(zip_output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        if os.path.exists(reports_dir):
+            for root_dir, dirs, files in os.walk(reports_dir):
+                for file in files:
+                    full_path = os.path.join(root_dir, file)
+                    rel_path = os.path.relpath(full_path, reports_dir)
+                    zipf.write(full_path, arcname=rel_path)
+    print(f"Đã đóng gói bằng chứng vào: {zip_output_path}")
+
 
 if __name__ == "__main__":
     log_file = sys.argv[1] if len(sys.argv) > 1 else "storage/logs/test-reports/phpunit_part4_execution.log"
