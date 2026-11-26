@@ -141,7 +141,7 @@ npm run test:k16:infra
 ```
 
 > [!WARNING]
-> **Không chạy `vendor/bin/phpunit` trực tiếp.** Repo không có `.env.testing`; PHPUnit sẽ dùng CSDL trong `.env` và xóa dữ liệu. Luôn chạy qua runner K16.
+> **Luôn chạy qua runner K16.** Repo không có `.env.testing`; nếu gọi `vendor/bin/phpunit` trực tiếp, chốt chặn `guardAgainstMissingEnv()` trong `tests/TestCase.php` sẽ dừng mọi test với lỗi “Aborting to avoid wiping your local database”. Không được tự tạo `.env.testing` trỏ vào CSDL đang dùng: khi đó test sẽ chạy migration và xóa dữ liệu thật. Runner K16 tự tạo `.env.testing` tạm và truyền thông tin CSDL của container qua biến môi trường.
 >
 > **Coverage:** máy chạy hiện chưa có PCOV/Xdebug nên chưa có số coverage. Khi cần, cài PCOV rồi thêm `--coverage-text` sau dấu `--`.
 

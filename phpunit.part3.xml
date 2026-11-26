@@ -2,7 +2,7 @@
 <!--
   Phân vùng 3 – Nguyễn Đình Thạch (2314506)
   Bản quyền phần mềm, Phụ kiện, Linh kiện, Vật tư tiêu hao & hạ tầng K16.
-  Chạy qua runner K16 (MySQL 8.0.36 tạm), KHÔNG chạy vendor/bin/phpunit trực tiếp.
+  Chạy qua runner K16 (MySQL 8.0.36 tạm). Gọi thẳng vendor/bin/phpunit sẽ bị chốt chặn .env.testing trong tests/TestCase.php dừng lại.
   Lệnh chạy: xem mục 3.3 của KE_HOACH_TRIEN_KHAI_PHAN_VUNG_3.md
   (XML không cho phép hai dấu gạch ngang liền nhau trong chú thích.)
   TC-INF-01 (dọn container khi crash) là test Node.js riêng: npm run test:k16:infra
