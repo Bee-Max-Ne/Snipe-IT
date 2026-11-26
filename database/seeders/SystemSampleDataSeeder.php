@@ -138,7 +138,11 @@ class SystemSampleDataSeeder extends Seeder
             $adminUser->location_id = $locDaLat->id;
             $adminUser->permissions = '{"superuser":"1","admin":"1"}';
             $adminUser->save();
-            $adminUser->groups()->syncWithoutDetaching([$groupSuperadmin->id]);
+            // User::groups() khai báo @return Relation nên PHPStan không thấy syncWithoutDetaching();
+            // thực tế quan hệ là BelongsToMany.
+            /** @var \Illuminate\Database\Eloquent\Relations\BelongsToMany $adminGroups */
+            $adminGroups = $adminUser->groups();
+            $adminGroups->syncWithoutDetaching([$groupSuperadmin->id]);
             $adminUser->companies()->syncWithoutDetaching([$companyFpt->id]);
         }
 
@@ -176,7 +180,9 @@ class SystemSampleDataSeeder extends Seeder
                     'location_id' => $u['location_id'],
                 ]
             );
-            $user->groups()->syncWithoutDetaching([$u['group']->id]);
+            /** @var \Illuminate\Database\Eloquent\Relations\BelongsToMany $userGroups */
+            $userGroups = $user->groups();
+            $userGroups->syncWithoutDetaching([$u['group']->id]);
             $user->companies()->syncWithoutDetaching([$u['company_id']]);
             $users[$key] = $user;
         }
