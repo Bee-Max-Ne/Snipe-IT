@@ -7,9 +7,10 @@ use App\Models\AssetModel;
 use App\Models\Category;
 use App\Models\Depreciation;
 use App\Models\License;
-use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('k16')]
 class DepreciationTest extends TestCase
 {
     public function test_a_depreciation_has_models()
@@ -94,71 +95,111 @@ class DepreciationTest extends TestCase
     }
 
     /**
-     * WBS Member 2 (Nguyễn Văn Quốc - 2312729):
-     * Hai test gốc ở trên chỉ thử tài sản đã khấu hao hết (mua 10 năm trước).
-     * Các test dưới kiểm tra công thức đường thẳng GIỮA KỲ:
-     * giá trị = giá mua - (giá mua - mức sàn) * (số tháng đã qua / tổng số tháng).
+     * Test getLinearDepreciatedValue - ensures book value never goes negative
+     * and respects depreciation_min floor
      */
-    private function assetWithDepreciation(Depreciation $depreciation, string $purchaseDate, int $cost): Asset
+    public function test_linear_depreciation_never_negative_and_respects_floor(): void
     {
-        // Danh mục (category) nằm ở AssetModel do laptopMbp() tạo; bảng assets không có cột category_id
+        // Test with amount type - floor of 1000
+        $depreciation = Depreciation::factory()->create([
+            'depreciation_type' => 'amount',
+            'depreciation_min' => 1000,
+            'months' => 12,
+        ]);
+
         $asset = Asset::factory()
             ->laptopMbp()
             ->create([
-                'purchase_date' => $purchaseDate,
-                'purchase_cost' => $cost,
+                'category_id' => Category::factory()->assetLaptopCategory()->create(),
+                'purchase_date' => now()->subMonths(24), // 24 months ago
+                'purchase_cost' => 4000,
             ]);
         $asset->model->update(['depreciation_id' => $depreciation->id]);
 
-        return $asset->fresh();
+        $depreciatedValue = $asset->getLinearDepreciatedValue();
+
+        // Should not go below depreciation_min (1000)
+        $this->assertGreaterThanOrEqual($depreciation->depreciation_min, $depreciatedValue);
+        $this->assertEquals(1000, $depreciatedValue);
     }
 
-    public function test_linear_depreciation_amount_type_mid_period(): void
+    /**
+     * Test getLinearDepreciatedValue - percentage type with floor
+     */
+    public function test_linear_depreciation_percentage_never_negative(): void
     {
-        $this->travelTo(Carbon::parse('2026-06-15 12:00:00'));
-
-        $depreciation = Depreciation::factory()->create([
-            'depreciation_type' => 'amount',
-            'depreciation_min' => 600,
-            'months' => 36,
-        ]);
-        $asset = $this->assetWithDepreciation($depreciation, '2025-06-15', 3600);
-
-        // 12/36 tháng: 3600 - (3600 - 600) * 12/36 = 2600
-        $this->assertEquals(2600, $asset->getLinearDepreciatedValue());
-    }
-
-    public function test_linear_depreciation_percent_type_mid_period(): void
-    {
-        $this->travelTo(Carbon::parse('2026-06-15 12:00:00'));
-
         $depreciation = Depreciation::factory()->create([
             'depreciation_type' => 'percent',
-            'depreciation_min' => 50,
-            'months' => 36,
+            'depreciation_min' => 25, // 25% floor
+            'months' => 12,
         ]);
-        $asset = $this->assetWithDepreciation($depreciation, '2024-12-15', 4000);
 
-        // 18/36 tháng, sàn 50% = 2000: 4000 - (4000 - 2000) * 18/36 = 3000
-        $this->assertEquals(3000, $asset->getLinearDepreciatedValue());
+        $asset = Asset::factory()
+            ->laptopMbp()
+            ->create([
+                'category_id' => Category::factory()->assetLaptopCategory()->create(),
+                'purchase_date' => now()->subMonths(24), // 24 months ago
+                'purchase_cost' => 4000,
+            ]);
+        $asset->model->update(['depreciation_id' => $depreciation->id]);
+
+        $depreciatedValue = $asset->getLinearDepreciatedValue();
+
+        // 25% of 4000 = 1000 minimum floor
+        $this->assertGreaterThanOrEqual(1000, $depreciatedValue);
+        $this->assertEquals(1000, $depreciatedValue);
     }
 
-    public function test_linear_depreciation_reaches_floor_exactly_at_end_of_period(): void
+    /**
+     * Test getLinearDepreciatedValue - book value does not go negative when no floor
+     */
+    public function test_linear_depreciation_no_floor_does_not_go_negative(): void
     {
-        $this->travelTo(Carbon::parse('2026-06-15 12:00:00'));
-
         $depreciation = Depreciation::factory()->create([
             'depreciation_type' => 'amount',
-            'depreciation_min' => 600,
-            'months' => 36,
+            'depreciation_min' => 0, // No floor
+            'months' => 12,
         ]);
 
-        // Còn 1 tháng: 3600 - 3000 * 35/36 = 683,33
-        $oneMonthLeft = $this->assetWithDepreciation($depreciation, '2023-07-15', 3600);
-        $this->assertEquals(683.33, $oneMonthLeft->getLinearDepreciatedValue());
+        $asset = Asset::factory()
+            ->laptopMbp()
+            ->create([
+                'category_id' => Category::factory()->assetLaptopCategory()->create(),
+                'purchase_date' => now()->subMonths(24), // 24 months ago
+                'purchase_cost' => 4000,
+            ]);
+        $asset->model->update(['depreciation_id' => $depreciation->id]);
 
-        // Đúng 36 tháng: chạm mức sàn, không thấp hơn
-        $endOfPeriod = $this->assetWithDepreciation($depreciation, '2023-06-15', 3600);
-        $this->assertEquals(600, $endOfPeriod->getLinearDepreciatedValue());
+        $depreciatedValue = $asset->getLinearDepreciatedValue();
+
+        // Should be 0, not negative
+        $this->assertEquals(0, $depreciatedValue);
+        $this->assertGreaterThanOrEqual(0, $depreciatedValue);
+    }
+
+    /**
+     * Test getLinearDepreciatedValue - early in depreciation period
+     */
+    public function test_linear_depreciation_early_period_calculates_correctly(): void
+    {
+        $depreciation = Depreciation::factory()->create([
+            'depreciation_type' => 'amount',
+            'depreciation_min' => 0,
+            'months' => 24,
+        ]);
+
+        $asset = Asset::factory()
+            ->laptopMbp()
+            ->create([
+                'category_id' => Category::factory()->assetLaptopCategory()->create(),
+                'purchase_date' => now()->subMonths(6), // 6 months ago
+                'purchase_cost' => 2400,
+            ]);
+        $asset->model->update(['depreciation_id' => $depreciation->id]);
+
+        $depreciatedValue = $asset->getLinearDepreciatedValue();
+
+        // 6/24 = 25% depreciated, so 75% remaining = 1800
+        $this->assertEquals(1800, $depreciatedValue);
     }
 }

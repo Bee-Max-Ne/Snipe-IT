@@ -6,8 +6,10 @@ use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\Category;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('k16')]
 class AssetModelTest extends TestCase
 {
     public function test_an_asset_model_contains_assets()

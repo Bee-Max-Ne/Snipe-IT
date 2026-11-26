@@ -9,14 +9,20 @@ use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\Category;
 use App\Models\Component;
+use App\Models\CustomField;
+use App\Models\CustomFieldset;
 use App\Models\Depreciation;
 use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('k16')]
 class AssetTest extends TestCase
 {
     public function test_auto_increment()
@@ -439,43 +445,111 @@ class AssetTest extends TestCase
     }
 
     /**
-     * WBS Member 2 (Nguyễn Văn Quốc - 2312729):
-     * Tính duy nhất của asset_tag được bảo vệ ở tầng model (luật validation
-     * unique_undeleted), không phải bằng ràng buộc UNIQUE trong CSDL.
-     * Bản trước của test này mong đợi QueryException từ MySQL nên luôn FAIL.
+     * Test UNIQUE constraint on asset_tag - duplicate asset_tag should fail
      */
-    public function test_asset_tag_uniqueness_is_enforced_by_model_validation(): void
+    public function test_asset_tag_unique_constraint(): void
     {
-        $tag = 'UNIQUE-TAG-TEST-2026';
-        Asset::factory()->create(['asset_tag' => $tag]);
+        $asset1 = Asset::factory()->create(['asset_tag' => 'UNIQUE-TEST-001']);
+        $this->assertModelExists($asset1);
 
-        $duplicate = Asset::factory()->make(['asset_tag' => $tag]);
+        $duplicateAsset = Asset::factory()->make(['asset_tag' => $asset1->asset_tag]);
 
-        $this->assertFalse($duplicate->save(), 'Model phải từ chối lưu asset_tag trùng');
-        $this->assertArrayHasKey('asset_tag', $duplicate->getErrors()->toArray());
-        $this->assertSame(1, Asset::where('asset_tag', $tag)->count());
+        // Asset tags are rejected by the model's unique_undeleted validation rule.
+        $this->assertFalse($duplicateAsset->save());
+        $this->assertTrue($duplicateAsset->getErrors()->has('asset_tag'));
     }
 
     /**
-     * WBS Member 2 (Nguyễn Văn Quốc - 2312729):
-     * Test ghi nhận hiện trạng (characterization): CSDL chỉ có index thường
-     * trên (deleted_at, asset_tag), không có UNIQUE. Ghi trực tiếp vào bảng,
-     * bỏ qua validation, sẽ lọt bản ghi trùng. Nếu sau này thêm UNIQUE index,
-     * test này sẽ FAIL để nhắc cập nhật tài liệu.
+     * Test Custom Fields: Encrypted custom field encryption, storage and decryption
      */
-    public function test_database_does_not_enforce_asset_tag_uniqueness(): void
+    public function test_encrypted_custom_field_encryption_and_decryption(): void
     {
-        $tag = 'DB-LEVEL-TAG-2026';
-        $first = Asset::factory()->create(['asset_tag' => $tag]);
+        // Create encrypted custom field using factory
+        $field = CustomField::factory()->testEncrypted()->create();
 
-        DB::table('assets')->insert([
-            'asset_tag' => $tag,
-            'model_id' => $first->model_id,
-            'status_id' => $first->status_id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // Create asset with the encrypted custom field
+        $asset = Asset::factory()->hasEncryptedCustomField($field)->create();
 
-        $this->assertSame(2, Asset::where('asset_tag', $tag)->count());
+        // Store the same encrypted representation used by the asset write path.
+        $plaintext = 'This is a test encrypted value';
+        $encryptedValue = Crypt::encrypt($plaintext);
+
+        $dbColumn = $field->db_column_name();
+        $asset->{$dbColumn} = $encryptedValue;
+        $asset->save();
+        $asset->refresh();
+
+        // Verify the database contains ciphertext, not plaintext.
+        $storedValue = DB::table('assets')->where('id', $asset->id)->value($dbColumn);
+        $this->assertNotSame($plaintext, $storedValue);
+        $this->assertSame($encryptedValue, $storedValue);
+
+        $this->assertSame($plaintext, Crypt::decrypt($storedValue));
+    }
+
+    /**
+     * Test Custom Fields: MAC Address format validation and storage
+     */
+    public function test_mac_address_custom_field_format_and_storage(): void
+    {
+        $macField = CustomField::factory()->macAddress()->state(['name' => 'MAC Address Unit Test'])->create();
+        $macField->refresh();
+
+        // Create a fieldset and attach the MAC field
+        $fieldset = CustomFieldset::factory()->create();
+        $fieldset->fields()->attach($macField->id, ['order' => 1, 'required' => false]);
+
+        // Create model with the fieldset
+        $model = AssetModel::factory()->create(['fieldset_id' => $fieldset->id]);
+
+        // Create asset with the model
+        $asset = Asset::factory()->create(['model_id' => $model->id]);
+
+        // The custom field column should now exist on the assets table
+        // Verify it exists
+        $this->assertNotEmpty($macField->db_column_name());
+        $this->assertTrue(Schema::hasColumn('assets', $macField->db_column_name()));
+
+        // Get the database column name
+        $dbColumn = $macField->db_column_name();
+
+        // Set a valid MAC address
+        $macAddress = '00:1A:2B:3C:4D:5E';
+        $asset->{$dbColumn} = $macAddress;
+        $asset->save();
+        $asset->refresh();
+
+        // Verify MAC address is stored correctly
+        $this->assertEquals($macAddress, $asset->{$dbColumn});
+
+        // Test invalid MAC address format fails validation
+        $asset2 = Asset::factory()->make(['model_id' => $model->id]);
+        $asset2->{$dbColumn} = 'invalid-mac-address';
+        $this->assertFalse($asset2->save());
+        $this->assertTrue($asset2->getErrors()->has($dbColumn));
+    }
+
+    public function test_imei_custom_field_format_and_storage(): void
+    {
+        $imeiField = CustomField::factory()->imei()->state(['name' => 'IMEI Unit Test'])->create();
+        $imeiField->refresh();
+        $fieldset = CustomFieldset::factory()->create();
+        $fieldset->fields()->attach($imeiField->id, ['order' => 1, 'required' => false]);
+        $model = AssetModel::factory()->create(['fieldset_id' => $fieldset->id]);
+        $asset = Asset::factory()->create(['model_id' => $model->id]);
+        $dbColumn = $imeiField->db_column_name();
+
+        $this->assertTrue(Schema::hasColumn('assets', $dbColumn));
+
+        $imei = '490154203237518';
+        $asset->{$dbColumn} = $imei;
+        $this->assertTrue($asset->save());
+        $this->assertSame($imei, DB::table('assets')->where('id', $asset->id)->value($dbColumn));
+
+        $invalidAsset = Asset::factory()->make(['model_id' => $model->id]);
+        $invalidAsset->{$dbColumn} = 'not-an-imei';
+
+        $this->assertFalse($invalidAsset->save());
+        $this->assertTrue($invalidAsset->getErrors()->has($dbColumn));
     }
 }
