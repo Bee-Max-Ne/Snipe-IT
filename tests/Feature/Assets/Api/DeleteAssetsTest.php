@@ -7,8 +7,10 @@ use App\Models\Company;
 use App\Models\User;
 use Tests\Concerns\TestsFullMultipleCompaniesSupport;
 use Tests\Concerns\TestsPermissionsRequirement;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('k16')]
 class DeleteAssetsTest extends TestCase implements TestsFullMultipleCompaniesSupport, TestsPermissionsRequirement
 {
     public function test_requires_permission()
@@ -53,9 +55,21 @@ class DeleteAssetsTest extends TestCase implements TestsFullMultipleCompaniesSup
         $this->assertSoftDeleted($assetC);
     }
 
-    public function test_cannot_delete_asset_that_is_checked_out()
+    public function test_deleting_checked_out_asset_checks_it_in_then_deletes()
     {
-        $this->markTestSkipped('This behavior is not functioning yet.');
+        $asset = Asset::factory()->create();
+        $user = User::factory()->create();
+        $asset->assigned_to = $user->id;
+        $asset->assigned_type = User::class;
+        $asset->save();
+
+        $this->actingAsForApi(User::factory()->deleteAssets()->create())
+            ->deleteJson(route('api.assets.destroy', $asset))
+            ->assertStatusMessageIs('success');
+
+        $this->assertSoftDeleted($asset);
+        $this->assertNull($asset->fresh()->assigned_to);
+        $this->assertHasTheseActionLogs($asset, ['create', 'checkin from', 'delete']);
     }
 
     public function test_can_delete_asset()

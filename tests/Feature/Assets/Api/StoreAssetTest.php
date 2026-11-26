@@ -14,8 +14,10 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\Fluent\AssertableJson;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('k16')]
 class StoreAssetTest extends TestCase
 {
     public function test_requires_permission_to_create_asset()
@@ -854,29 +856,23 @@ class StoreAssetTest extends TestCase
 
     public function test_permission_needed_to_store_encrypted_field()
     {
-        // @todo:
-        $this->markTestIncomplete();
-
         $status = Statuslabel::factory()->readyToDeploy()->create();
         $field = CustomField::factory()->testEncrypted()->create();
-        $normal_user = User::factory()->editAssets()->create();
+        $normal_user = User::factory()->createAssets()->create();
         $assetData = Asset::factory()->hasEncryptedCustomField($field)->make();
 
         $response = $this->actingAsForApi($normal_user)
             ->postJson(route('api.assets.store'), [
-                $field->db_column_name() => 'Some Other Value Entirely!',
+                $field->db_column_name() => 'Secret Value',
                 'model_id' => $assetData->model->id,
                 'status_id' => $status->id,
                 'asset_tag' => '1234',
             ])
-            // @todo: this is 403 unauthorized
             ->assertStatusMessageIs('success')
-            ->assertOk()
-            ->assertMessagesAre('Asset updated successfully, but encrypted custom fields were not due to permissions')
-            ->json();
+            ->assertOk();
 
-        $asset = Asset::findOrFail($response['payload']['id']);
-        $this->assertEquals('This is encrypted field', Crypt::decrypt($asset->{$field->db_column_name()}));
+        $asset = Asset::first();
+        $this->assertNull($asset->{$field->db_column_name()});
     }
 
     public function test_base64_asset_images()
