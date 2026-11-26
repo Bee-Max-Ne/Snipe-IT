@@ -61,6 +61,12 @@ try {
     container = await mysqlContainer.start();
     containerStarted = true;
 
+    // PDO MySQL hiểu "localhost" là kết nối qua Unix socket và bỏ qua cổng, nên
+    // trên Linux (GitHub Actions) báo lỗi [2002] No such file or directory.
+    // Ép dùng TCP tới cổng đã map của container bằng 127.0.0.1.
+    const containerHost = container.getHost();
+    const dbHost = containerHost === 'localhost' ? '127.0.0.1' : containerHost;
+
     const phpunit = path.join(projectRoot, 'vendor', 'bin', 'phpunit');
     const result = spawnSync(phpBinary, [phpunit, ...process.argv.slice(2)], {
         cwd: projectRoot,
@@ -68,7 +74,7 @@ try {
             ...process.env,
             APP_ENV: 'testing',
             DB_CONNECTION: 'mysql',
-            DB_HOST: container.getHost(),
+            DB_HOST: dbHost,
             DB_PORT: String(container.getPort()),
             DB_DATABASE: database,
             DB_USERNAME: username,

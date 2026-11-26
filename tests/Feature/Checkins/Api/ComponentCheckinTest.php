@@ -12,6 +12,11 @@ use Tests\Concerns\TestsFullMultipleCompaniesSupport;
 use Tests\Concerns\TestsPermissionsRequirement;
 use Tests\TestCase;
 
+/**
+ * TC-CP-02 (Phân vùng 3 – Nguyễn Đình Thạch, 2314506): checkin linh kiện qua API – quyền, số lượng
+ * không vượt số đã xuất, phạm vi đa công ty, ghi log. (Test gốc của Snipe-IT,
+ * được đưa vào phạm vi kiểm thử Phân vùng 3.)
+ */
 class ComponentCheckinTest extends TestCase implements TestsFullMultipleCompaniesSupport, TestsPermissionsRequirement
 {
     public function test_requires_permission()

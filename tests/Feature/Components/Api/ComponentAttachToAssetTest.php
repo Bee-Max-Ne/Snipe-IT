@@ -8,6 +8,10 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
+/**
+ * TC-CP-01 (Phân vùng 3 – Nguyễn Đình Thạch, 2314506): gắn linh kiện vào tài sản phần cứng và
+ * hoàn số lượng khi checkin toàn phần/một phần.
+ */
 class ComponentAttachToAssetTest extends TestCase
 {
     public function test_component_attached_to_hardware(): void

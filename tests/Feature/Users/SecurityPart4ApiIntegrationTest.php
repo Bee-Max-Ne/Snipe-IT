@@ -259,7 +259,9 @@ class SecurityPart4ApiIntegrationTest extends TestCase
             $this->assertSame('mysql', $driver, 'Khi bật K16 Testcontainers, driver bắt buộc phải là mysql.');
         }
 
-        if ($driver === 'mysql') {
+        // Chỉ khẳng định MySQL 8.0.x khi chạy qua runner K16 (TESTCONTAINERS_MYSQL=1).
+        // Workflow tests-mysql.yml dùng service mysql:5.7 nên không được ép phiên bản ở đó.
+        if ($driver === 'mysql' && getenv('TESTCONTAINERS_MYSQL') === '1') {
             $versionRow = DB::selectOne('SELECT VERSION() AS mysql_version');
             $mysqlVersion = $versionRow->mysql_version ?? '';
             $this->assertStringStartsWith('8.0', $mysqlVersion, 'K16 Testcontainers phải chạy đúng MySQL 8.0.x.');
