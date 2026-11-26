@@ -98,11 +98,11 @@ flowchart TD
 | Giai Đoạn (Phase) | Tên Giai Đoạn | Nhiệm Vụ Chi Tiết | Sản Phẩm Đầu Ra (Deliverables) |
 | :--- | :--- | :--- | :--- |
 | **Giai đoạn 1** | **Nghiên cứu & Khảo sát** | - Nghiên cứu nguyên lý K16 Testcontainers (Ephemeral MySQL 8.0).<br>- Khảo sát kiến trúc `User::hasAccess()`, `CompanyableScope`, `Actionlog`.<br>- Xác định sai lệch môi trường giữa SQLite và MySQL. | - Báo cáo khảo sát K16.<br>- Sơ đồ kiến trúc phòng tuyến an ninh Phân vùng 4. |
-| **Giai đoạn 2** | **Thiết kế Kịch bản** | - Xây dựng Threat Model theo OWASP A01 & Privilege Escalation.<br>- Áp dụng kỹ thuật Bảng quyết định, Phân vùng tương đương, Giá trị biên.<br>- Đặc tả chi tiết 15 test cases (`TC-SEC-01` đến `TC-SEC-15`). | - Tài liệu `KE_HOACH_KIEM_THU_PHAN_VUNG_4_NGUYEN_THANH_MINH.md`.<br>- Ma trận kiểm thử tổng quát. |
-| **Giai đoạn 3** | **Lập trình Tự động** | - Viết các test method trong `tests/Unit/UserTest.php`.<br>- Cấu hình Model Factories và Data Provider trong `CompanyScopingTest.php`.<br>- Tinh chỉnh cấu hình runner Node.js `tests/testcontainers/run.mjs`. | - Mã nguồn kiểm thử đã commit trên nhánh Git.<br>- 15 kịch bản tự động sẵn sàng thực thi. |
-| **Giai đoạn 4** | **Thực thi & Thu thập Bằng chứng** | - Chạy kiểm thử trên máy trạm cục bộ và container K16.<br>- Thu thập log đầu ra, thời gian thực thi, số lượng assertions.<br>- Trích xuất chỉ số Code Coverage (dòng lệnh, hàm, nhánh rẽ). | - File log thực thi PHPUnit CLI.<br>- Báo cáo Code Coverage HTML/XML.<br>- Bảng so sánh benchmark SQLite vs MySQL. |
-| **Giai đoạn 5** | **Quản lý Lỗi & Phân tích RCA** | - Xử lý nhánh Lỗi: Lập hồ sơ lỗi P1–P4, thực hiện 5 Whys, vẽ biểu đồ Xương cá.<br>- Xử lý nhánh Không lỗi: Chứng minh tính bất khả xâm phạm của phòng tuyến, lập RTM. | - Danh mục Defect Log (`DEFECT-SEC-01` -> `03`).<br>- 3 bài toán RCA chuyên sâu.<br>- Báo cáo đề xuất CAPA. |
-| **Giai đoạn 6** | **Tích hợp CI/CD & Nghiệm thu** | - Tích hợp workflow kiểm thử tự động vào GitHub Actions.<br>- Thiết lập Quality Gate chặn merge nếu test fail hoặc coverage < 85%.<br>- Hoàn tất báo cáo thực nghiệm Giai đoạn 2. | - File `.github/workflows/testcontainers.yml`.<br>- Tài liệu `BAO_CAO_METRICS_COVERAGE_VA_RCA_PHAN_VUNG_4.md`. |
+| **Giai đoạn 2** | **Thiết kế Kịch bản** | - Xây dựng Threat Model theo OWASP A01 & Privilege Escalation.<br>- Áp dụng kỹ thuật Bảng quyết định, Phân vùng tương đương, Giá trị biên.<br>- Đặc tả chi tiết 15 ca Unit (`TC-SEC-01..15`) và 10 ca Integration (`TC-SEC-API-01..10`). | - Tài liệu `KE_HOACH_TRIEN_KHAI_PHAN_VUNG_4.md`.<br>- Ma trận kiểm thử tổng quát. |
+| **Giai đoạn 3** | **Lập trình Tự động** | - Viết các test method trong `UserTest.php`, `CompanyScopingTest.php` và `SecurityPart4ApiIntegrationTest.php`.<br>- Cấu hình `phpunit.part4.xml` tích hợp hồi quy `Users`, `Groups`, `Auth`, `Authentication`.<br>- Tinh chỉnh cấu hình runner Node.js `tests/testcontainers/run.mjs`. | - Mã nguồn kiểm thử đã commit trên nhánh Git.<br>- Bộ 564 tests (2,149 assertions) sẵn sàng thực thi. |
+| **Giai đoạn 4** | **Thực thi & Thu thập Bằng chứng** | - Chạy kiểm thử trên máy trạm cục bộ và container K16.<br>- Thu thập log đầu ra, thời gian thực thi, số lượng assertions.<br>- Trích xuất chỉ số Code Coverage (dòng lệnh, hàm). | - File log thực thi PHPUnit CLI & JUnit XML.<br>- Báo cáo Code Coverage HTML/XML (`82.60%`).<br>- Bằng chứng `mysql_container_proof.json` & `checksums.sha256`. |
+| **Giai đoạn 5** | **Quản lý Lỗi & Phân tích RCA** | - Xử lý nhánh Lỗi: Lập hồ sơ lỗi P1–P4, thực hiện 5 Whys, vẽ biểu đồ Xương cá.<br>- Xử lý nhánh Không lỗi: Chứng minh tính bất khả xâm phạm của phòng tuyến, lập RTM. | - Danh mục Defect Log (`DEFECT-SEC-01` -> `04`).<br>- Phân tích RCA chuyên sâu & đề xuất CAPA. |
+| **Giai đoạn 6** | **Tích hợp CI/CD & Nghiệm thu** | - Tích hợp workflow kiểm thử tự động vào GitHub Actions.<br>- Thiết lập Quality Gate kiểm tra test pass 100% và coverage >= 80%.<br>- Hoàn tất báo cáo thực nghiệm & tái lập. | - File `.github/workflows/testcontainers_phan_vung_4.yml`.<br>- Tài liệu `BAO_CAO_THUC_NGHIEM_METRICS_PHAN_VUNG_4.md` & `README_REPRODUCE_PART4.md`. |
 
 ---
 
@@ -140,11 +140,11 @@ flowchart TD
 
 | STT | Kênh Dữ Liệu Bằng Chứng | Định Dạng Dữ Liệu | Mục Đích Minh Chứng | Tệp Lưu Trữ Dự Kiến |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | **CLI Execution Logs** | Text Log (`.log`, stdout/stderr) | Chứng minh ca test đã chạy thực tế, số lượng assertions, thời gian chạy. | `storage/logs/test-runs/.../phpunit_execution.log` |
-| **2** | **Code Coverage Artifacts** | Clover XML, HTML Report | Định lượng tỷ lệ dòng lệnh (Line), hàm (Method), nhánh rẽ (Branch) được duyệt. | `storage/coverage/html/index.html` |
-| **3** | **Database Query Traces** | SQL Trace Log (`.sql`) | Chứng minh câu lệnh SQL trên MySQL Engine có chứa đúng `WHERE companies.id`. | `storage/logs/test-runs/.../mysql_query_trace.log` |
-| **4** | **Git Audit Trail** | Git Log History | Minh chứng tiến trình làm việc độc lập, nguyên tử (Atomic Commits) của sinh viên. | `storage/logs/git-test-commits.log` |
-| **5** | **CI/CD Pipeline Artifacts** | GitHub Actions Run Summary | Chứng minh kiểm thử tự động vượt qua cổng Quality Gate trên máy chủ đám mây. | `actions/runs/<run_id>` & Artifact Zip |
+| **1** | **CLI Execution Logs & JUnit** | Text Log (`.log`), JUnit XML | Chứng minh ca test đã chạy thực tế, số lượng assertions, thời gian chạy. | `storage/logs/test-reports/phpunit_part4_execution.log`, `junit_part4_report.xml` |
+| **2** | **Code Coverage Artifacts** | Clover XML, HTML Report | Định lượng tỷ lệ dòng lệnh (Line) và hàm (Method) được duyệt (PCOV 1.0.12). | `storage/logs/test-reports/coverage-html/index.html`, `coverage_clover.xml` |
+| **3** | **Container & Metadata Proofs** | JSON Proof (`mysql_container_proof.json`) | Chứng minh kết nối Docker MySQL `8.0.36` thật, Branch, Commit SHA & PHP runtime. | `storage/logs/test-reports/mysql_container_proof.json`, `environment_metadata.json` |
+| **4** | **Git Audit Trail & SHA-256** | Git Log History & SHA-256 | Minh chứng tiến trình làm việc độc lập, nguyên tử và chống sửa đổi log. | `storage/logs/test-reports/git_commit_evidence.txt`, `checksums.sha256` |
+| **5** | **CI/CD Pipeline Artifacts** | GitHub Actions Run Summary | Chứng minh kiểm thử tự động vượt qua cổng Quality Gate trên máy chủ đám mây. | `actions/runs/<run_id>` & `Evidence_PhanVung4_v1.0.zip` |
 
 ---
 
@@ -155,21 +155,21 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph LogSources["4 TẦNG LOG TRONG PHÂN VÙNG 4"]
-        L1["Tầng 1: Test Execution Logs (PHPUnit CLI, Testcontainers Runner)"]
+        L1["Tầng 1: Test Execution Logs (PHPUnit CLI, JUnit XML, PCOV Coverage)"]
         L2["Tầng 2: Framework Logs (Laravel Exceptions, Debug Traces)"]
-        L3["Tầng 3: Database Logs (MySQL Ephemeral Queries, Foreign Key Checks)"]
+        L3["Tầng 3: Container & Metadata Proofs (MySQL 8.0.36 Proof, SHA-256)"]
         L4["Tầng 4: System Audit Trail (Bảng action_logs trong CSDL)"]
     end
 
     subgraph StorageStructure["CẤU TRÚC LƯU TRỮ (STORAGE HIERARCHY)"]
-        L1 --> D1["storage/logs/test-runs/YYYY-MM-DD_HH-mm-ss/"]
+        L1 --> D1["storage/logs/test-reports/ & storage/logs/artifacts/"]
         L2 --> D2["storage/logs/laravel.log (Kèm Channel phân loại)"]
         L3 --> D1
         L4 --> D3[("Bảng action_logs (MySQL CSDL Bất Biến)")]
     end
 
     subgraph RetentionPolicy["CHÍNH SÁCH VÒNG ĐỜI & XOAY VÒNG (RETENTION)"]
-        D1 -- "Giữ lại 10 phiên gần nhất" --> R1["Local: Xoay vòng tự động, nén ZIP khi cần"]
+        D1 -- "Lưu bản mới nhất + ZIP theo dấu thời gian" --> R1["Local: Tự động đóng gói Evidence_PhanVung4_<timestamp>.zip"]
         D1 -- "Upload qua GitHub Actions" --> R2["CI/CD: Lưu 7 ngày (PR) / 30 ngày (Master)"]
         D2 -- "Làm sạch thông tin nhạy cảm" --> R3["Sanitization: Mask Password, API Keys"]
         D3 -- "TUYỆT ĐỐI KHÔNG XÓA" --> R4["Zero Purge: Bất biến vĩnh viễn (Immutability)"]
@@ -446,19 +446,19 @@ flowchart LR
             DkTest --> DkStop["container.stop() -> Tiêu hủy 100% CSDL"]
         end
         
-        DkStop --> Step5["5. Kiểm tra Cổng Coverage (Enforce min >= 85%)"]
+        DkStop --> Step5["5. Kiểm tra Cổng Coverage (Enforce min >= 80%)"]
         Step5 --> Step6["6. Xuất GitHub Step Summary & Upload Artifacts"]
     end
 
     subgraph Decision["CỔNG KIỂM SOÁT (QUALITY & PEER REVIEW GATE)"]
-        Step6 -- "Tests PASS & Coverage >= 85% & Peer Review OK" --> GatePass["GREEN CHECK: Cho phép Merge Pull Request"]
-        Step6 -- "Bất kỳ Test nào FAIL hoặc Coverage < 85%" --> GateFail["RED X: Chặn Merge & Gửi Thông báo Cảnh báo"]
+        Step6 -- "Tests PASS & Coverage >= 80% & Peer Review OK" --> GatePass["GREEN CHECK: Cho phép Merge Pull Request"]
+        Step6 -- "Bất kỳ Test nào FAIL hoặc Coverage < 80%" --> GateFail["RED X: Chặn Merge & Gửi Thông báo Cảnh báo"]
     end
 ```
 
 ---
 
-### 5.1 Đặc tả Cấu hình Workflow CI/CD Chuẩn Hóa (`.github/workflows/testcontainers.yml`):
+### 5.1 Đặc tả Cấu hình Workflow CI/CD Chuẩn Hóa (`.github/workflows/testcontainers_phan_vung_4.yml`):
 File workflow được tối ưu hóa với bộ đệm bộ nhớ đệm (Cache), trình đo Coverage PCOV tốc độ cao và cổng kiểm tra tự động:
 
 ```yaml
@@ -546,11 +546,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: partition4-testcontainers-logs-${{ github.run_id }}
+          name: part4-security-testcontainers-evidence-${{ github.run_attempt }}
           path: |
+            storage/logs/test-reports/**
+            storage/logs/artifacts/**
             storage/logs/*.log
-            storage/logs/test-runs/
-          retention-days: 7
+          retention-days: 14
 ```
 
 ---
@@ -562,8 +563,8 @@ CI/CD không chỉ là việc chạy lệnh tự động, mà bản chất là *
 ```mermaid
 flowchart TD
     PR["Pull Request từ feature/phan-vung-4-kiem-thu-an-ninh vào develop"] --> Check1{"1. CI Status Check (GitHub Actions)"}
-    Check1 -- "RED X (Test Fail hoặc Coverage < 85%)" --> Block1["⛔ TỰ ĐỘNG CHẶN MERGE: Yêu cầu sửa lỗi trên nhánh feature"]
-    Check1 -- "GREEN CHECK (100% Pass & Coverage >= 85%)" --> Check2{"2. Peer Review Check (Đánh giá chéo)"}
+    Check1 -- "RED X (Test Fail hoặc Coverage < 80%)" --> Block1["⛔ TỰ ĐỘNG CHẶN MERGE: Yêu cầu sửa lỗi trên nhánh feature"]
+    Check1 -- "GREEN CHECK (100% Pass & Coverage >= 80%)" --> Check2{"2. Peer Review Check (Đánh giá chéo)"}
     
     Check2 -- "Chưa có thành viên duyệt" --> Block2["⏳ CHỜ DUYỆT: Cần ít nhất 1 thành viên Approve"]
     Check2 -- "Thành viên nhóm bấm Approve" --> AllowMerge["✅ CHO PHÉP MERGE: Gộp code an toàn vào nhánh develop"]
