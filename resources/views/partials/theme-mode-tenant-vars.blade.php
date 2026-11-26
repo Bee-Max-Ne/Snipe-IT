@@ -22,7 +22,7 @@
         --default-label-link-text: light-dark({{ $link_light_color ?? '#296282' }}, {{ $link_dark_color ?? '#5fa4cc' }});
     }
     [data-theme="light"] {
-        --link-color: {{ ($link_light_color && $link_light_color !== '#ffffff') ? $link_light_color : '#111827' }};
+        --link-color: {{ (($link_light_color ?? null) && $link_light_color !== '#ffffff') ? $link_light_color : '#111827' }};
     }
     [data-theme="dark"] {
         --link-color: {{ $link_dark_color ?? '#60a5fa' }};
