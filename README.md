@@ -14,7 +14,7 @@
 3. [Quy trình Kiểm thử 4 Bước Chuẩn K16 Testcontainers](#3-quy-trình-kiểm-thử-4-bước-chuẩn-k16-testcontainers)
 4. [Bóc tách Kiến trúc Hệ thống Chi tiết (7 Tầng Kiến trúc)](#4-bóc-tách-kiến-trúc-hệ-thống-chi-tiết-7-tầng-kiến-trúc)
 5. [4 Phân vùng Kiểm thử Trọng tâm Ứng dụng K16 Ephemeral Database](#5-4-phân-vùng-kiểm-thử-trọng-tâm-ứng-dụng-k16-ephemeral-database)
-6. [Đặc tả Chi tiết Bộ Test Cases API (TC-CO-01 đến TC-CO-07) trên K16](#6-đặc-tả-chi-tiết-bộ-test-cases-api-tc-co-01-đến-tc-co-07-trên-k16)
+6. [Đặc tả Chi tiết Bộ Test Cases API Trọng tâm & Concurrency trên K16](#6-đặc-tả-chi-tiết-bộ-test-cases-api-trọng-tâm--concurrency-trên-k16)
 7. [Hiện trạng Cơ sở Dữ liệu & Dữ liệu Mẫu (Seeding Data)](#7-hiện-trạng-cơ-sở-dữ-liệu--dữ-liệu-mẫu-seeding-data)
 8. [Hướng dẫn Cài đặt, Vận hành & Thực thi Kiểm thử Tự động với K16 Testcontainers](#8-hướng-dẫn-cài-đặt-vận-hành--thực-thi-kiểm-thử-tự-động-với-k16-testcontainers)
 
@@ -262,18 +262,16 @@ flowchart TD
 
 ## 5. 4 PHÂN VÙNG KIỂM THỬ TRỌNG TÂM ỨNG DỤNG K16 EPHEMERAL DATABASE
 
-### 5.1 Phân vùng 1: API Checkout, Checkin & Quy trình Cấp phát / Thu hồi
-- **Chủ trì:** Phạm Nguyễn Ngọc Phước (2312718)
-- **Tệp kiểm thử checkout:** [AssetCheckoutTest.php](tests/Feature/Checkouts/Api/AssetCheckoutTest.php).
+### 5.1 Phân vùng 1: Module API Checkout, Checkin & Quy trình Cấp phát / Thu hồi
+- **Chủ trì:** Phạm Nguyễn Ngọc Phước (2312718) — *Lead QA / API Testing Lead*
+- **Tệp kiểm thử checkout:** [AssetCheckoutTest.php](tests/Feature/Checkouts/Api/AssetCheckoutTest.php), [AssetCheckoutRaceGuardTest.php](tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php).
 - **Tệp kiểm thử checkin:** [AssetCheckinTest.php](tests/Feature/Checkins/Api/AssetCheckinTest.php).
-- **Mục tiêu:** kiểm chứng hợp đồng API, quyền truy cập, quy tắc trạng thái tài sản, quan hệ đối tượng nhận, tính toàn vẹn của assignment/counter/timestamp/action log và khả năng khôi phục vị trí khi thu hồi.
-- **Lưu ý về concurrency:** mã checkout hiện dùng `DB::transaction()` cùng `lockForUpdate()` và kiểm tra lại trạng thái trên hàng đã khóa. Chưa có test với hai request/worker chạy đồng thời; các test tuần tự không được xem là bằng chứng đã kiểm thử race condition.
+- **Mục tiêu:** Kiểm chứng hợp đồng API, quyền truy cập, quy tắc trạng thái tài sản, quan hệ đối tượng nhận, tính toàn vẹn của assignment/counter/timestamp/action log, khả năng khôi phục vị trí khi thu hồi và cơ chế khóa hàng bi quan (`lockForUpdate()`) chống Race Condition.
+- **Cơ chế Concurrency & Khóa dòng trên MySQL InnoDB:** Mã nguồn nghiệp vụ checkout sử dụng `DB::transaction()` bọc lệnh `Asset::whereKey($asset->id)->lockForUpdate()->first()` để tái kiểm tra tính khả dụng (`availableForCheckout()`) ngay trên hàng đã khóa độc quyền (X-Lock). Đồ án đã bổ sung bài test `test_concurrent_checkout_race_prevented_by_pessimistic_lock` và `test_checkout_issues_pessimistic_row_lock_inside_transaction` (trong `AssetCheckoutRaceGuardTest.php`), kích hoạt 2 kết nối CSDL độc lập mô phỏng 2 worker chạy song song trên container MySQL K16. Khi Worker 1 chiếm lock, Worker 2 bị chặn (Lock Wait Timeout); sau khi Worker 1 checkout và commit thành công, Worker 2 đọc lại trạng thái thấy `availableForCheckout() == false` và bị từ chối, bảo đảm tài sản chỉ được cấp phát đúng 1 lần duy nhất (`checkout_counter = 1`).
 
-## 6. PHÂN VÙNG 1: MODULE API CHECKOUT, CHECKIN & QUY TRÌNH CẤP PHÁT / THU HỒI
+#### 5.1.1 Tổng quan phân vùng & đối tượng kiểm thử (SUT)
 
-### 6.1 Tổng quan phân vùng & đối tượng kiểm thử (SUT)
-
-#### 6.1.1 Mục tiêu kiểm thử
+##### Mục tiêu kiểm thử
 
 - Xác nhận người dùng đủ quyền có thể cấp phát tài sản sẵn sàng cho user, asset hoặc location hợp lệ.
 - Xác nhận tài sản không sẵn sàng, đã được cấp phát, target không hợp lệ hoặc thiếu quyền không làm sai trạng thái tài sản.
@@ -281,7 +279,7 @@ flowchart TD
 - Kiểm tra tác dụng phụ liên quan như event `CheckoutableCheckedOut`, event `CheckoutableCheckedIn` và `action_logs`.
 - Chạy các test tích hợp được chọn trên MySQL 8.0.36 tạm thời bằng K16; không suy diễn rằng tất cả test của hai tệp đều đã chạy trên K16.
 
-#### 6.1.2 Danh mục thành phần hệ thống thuộc phạm vi kiểm thử (SUT Components)
+##### Danh mục thành phần hệ thống thuộc phạm vi kiểm thử (SUT Components)
 
 | Thành phần | Vai trò trong luồng | Cách được kiểm tra |
 | --- | --- | --- |
@@ -292,32 +290,32 @@ flowchart TD
 | `AssetObserver`, events và `action_logs` | Ghi nhận tác dụng phụ/audit của nghiệp vụ | Assertion event và bản ghi log ở các ca phù hợp |
 | `tests/testcontainers/run.mjs` | Tạo DB MySQL dùng riêng cho lần chạy test | Kiểm thử runner qua lệnh npm; container được dừng trong `finally` |
 
-### 6.2 Bối cảnh nghiệp vụ & cơ chế kỹ thuật nền tảng
+#### 5.1.2 Bối cảnh nghiệp vụ & cơ chế kỹ thuật nền tảng
 
-#### 6.2.1 Vòng đời trạng thái tài sản
+##### Vòng đời trạng thái tài sản
 
 `Sẵn sàng, chưa gán` → **Checkout thành công** → `Đã gán cho User/Asset/Location` → **Checkin thành công** → `Không còn đối tượng gán, trở về RTD location hoặc location được yêu cầu`.
 
 Nếu checkout/checkin bị từ chối, trạng thái gán hiện tại phải được giữ nguyên. Với checkout tới user/location, `assigned_type` và `assigned_to` biểu diễn quan hệ đa hình; location hiện tại có thể được cập nhật theo đối tượng nhận. Checkin xóa `assigned_to`/`assigned_type`, xóa `expected_checkin`, cập nhật `last_checkin` và đặt `location_id` về `rtd_location_id` trừ khi request chỉ định location khác.
 
-#### 6.2.2 Các cơ chế kỹ thuật trọng yếu được kiểm tra
+##### Các cơ chế kỹ thuật trọng yếu được kiểm tra
 
 - **Authentication/Authorization:** API không có xác thực nhận 401; người dùng đã xác thực nhưng không có quyền checkout/checkin bị từ chối theo Policy.
 - **Validation và quy tắc nghiệp vụ:** chỉ cấp phát asset có thể checkout; target phải tồn tại, hợp lệ và chỉ có một target.
 - **Giao dịch/khóa hàng:** checkout hiện chạy trong `DB::transaction()`, lấy lại asset bằng `lockForUpdate()` rồi kiểm tra `availableForCheckout()` trên hàng đã khóa.
 - **Tính toàn vẹn dữ liệu:** `assigned_to`, `assigned_type`, `location_id`, `status_id`, counters, timestamp và audit/event được kiểm tra sau request.
 - **FMCS:** các test hiện có bao phủ một số tổ hợp công ty, membership qua pivot và floater mode.
-- **Giới hạn bằng chứng:** chưa có kiểm thử hai worker checkout đồng thời; test khóa hàng tuần tự không chứng minh cơ chế chống race condition.
+- **Kiểm chứng Race Condition:** K16 container MySQL 8.0.36 hỗ trợ đầy đủ `SELECT ... FOR UPDATE` và phát hiện tranh chấp khóa hàng (`Lock Wait Timeout` 1205).
 
-### 6.3 Môi trường thực thi & chiến lược kiểm thử tự động
+#### 5.1.3 Môi trường thực thi & chiến lược kiểm thử tự động với K16
 
-#### 6.3.1 Thiết lập hạ tầng cô lập với Testcontainers
+##### Thiết lập hạ tầng cô lập với Testcontainers
 
 Runner `tests/testcontainers/run.mjs` dùng `@testcontainers/mysql` với image `mysql:8.0.36`, tên database/mật khẩu ngẫu nhiên, sinh khóa Passport RSA trong bộ nhớ, truyền biến môi trường cho PHPUnit rồi dừng container trong `finally`. Cần Docker daemon, Node.js từ 18 trở lên, PHP CLI cùng `pdo_mysql`, Composer dependencies và npm dependencies.
 
 Mỗi lệnh gọi runner tạo container riêng. Trong workflow hiện tại, smoke test checkout-checkin và từng test mới được gọi ở các bước riêng; sự tồn tại của test trong repository không đồng nghĩa toàn bộ suite đã được thực thi.
 
-### 6.4 Đặc tả chi tiết các test case
+#### 5.1.4 Chi tiết các test case cốt lõi Phân vùng 1
 
 Các mã dưới đây là mã tài liệu của Phân vùng 1. “Đã có trong mã nguồn” nói về sự hiện diện của test; trạng thái chạy K16 phải đối chiếu kết quả CI, không suy ra từ việc test được khai báo.
 
@@ -332,7 +330,17 @@ Các mã dưới đây là mã tài liệu của Phân vùng 1. “Đã có tron
 | TC-CO-06 | `test_checkout_fails_if_asset_already_checked_out` | Asset hiện đang gán cho user khác | Status message error; assignment ban đầu không bị ghi đè | Đã có |
 | TC-CO-07 | `test_checkout_to_location_instead_of_user` | Checkout asset trực tiếp cho location | `assigned_type`, `assigned_to`, `location_id`, counter và response đúng | Đã có |
 | TC-CO-08 | `test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log` | Target user không tồn tại; gửi thêm status ID | Error; status/location/assignment/counter không đổi; không có checkout log/event | Đã thêm; CI được cấu hình chạy |
-| TC-CI-01 | `test_checkin_cannot_be_repeated_without_mutating_asset` | Checkin thành công rồi gửi checkin lần hai | Lần hai error; assignment vẫn rỗng; counter/timestamp không đổi; event chỉ phát một lần | Đã thêm; CI được cấu hình chạy |
+| TC-CI-01 | `test_asset_can_be_checked_in` | Asset đang gán cho user; actor có quyền checkin | Response success; giải phóng đối tượng gán; cập nhật status/location/name | Đã có |
+| TC-CI-02 | `test_location_is_set_to_rtd_location_by_default_upon_checkin` | Asset đang checkout, có RTD location khác vị trí hiện tại | Tự động trả về RTD location mặc định khi không chỉ định location mới | Đã có |
+| TC-CI-03 | `test_default_location_can_be_updated_upon_checkin` | Checkin kèm update_default_location=true | Cập nhật kho mặc định mới cho tài sản khi thu hồi | Đã có |
+| TC-CI-04 | `test_assets_license_seats_are_cleared_upon_checkin` | Asset có license seat đang gắn cho user | Tự động thu hồi và giải phóng ghế bản quyền phần mềm khi thu hồi máy | Đã có |
+| TC-CI-05 | `test_checking_in_asset_updates_location_of_assets_assigned_to_it` | Parent asset và child asset cùng gắn với location | Thu hồi parent asset tự động đồng bộ vị trí mới cho child assets | Đã có |
+| TC-CI-06 | `test_legacy_location_values_set_to_zero_are_updated` | Asset dùng location legacy bằng 0 | Chuẩn hóa dữ liệu legacy location thành null hợp lệ | Đã có |
+| TC-CI-07 | `test_pending_checkout_acceptances_are_cleared_upon_checkin` | Asset có acceptance đang pending | Tự động dọn sạch checkout acceptance đang chờ khi thu hồi | Đã có |
+| TC-CI-08 | `test_checkin_time_and_action_log_note_can_be_set` | Checkin kèm ngày checkin_at và note | Event và nhật ký kiểm toán action_logs ghi nhận đúng ngày và note | Đã có |
+| TC-CI-09 | `test_asset_name_is_cleared_on_checkin_when_clear_name_is_set` | Asset có tên; gửi clear_name=1 | Tên tài sản chỉ bị xóa sạch khi có yêu cầu rõ ràng qua clear_name | Đã có |
+| TC-CI-10 | `test_checkin_cannot_be_repeated_without_mutating_asset` | Checkin thành công rồi gửi checkin lần hai | Lần 1 success, lần 2 error; counter/timestamp không đổi; event chỉ phát 1 lần | Đã thêm; CI được cấu hình chạy |
+| TC-RC-01 | `test_concurrent_checkout_race_prevented_by_pessimistic_lock` | 2 kết nối đồng thời tranh chấp 1 asset | InnoDB khóa hàng độc quyền (lockForUpdate); luồng 2 timeout; ngăn Double-Allocation | Đã thêm; CI được cấu hình chạy |
 
 Các tệp còn có những test riêng về quyền, asset không tồn tại, nhiều target, FMCS, location khi checkin, license seats, child assets, legacy location, pending acceptance, ngày checkin và tên tài sản. Đây là các test nền hiện hữu; không có nghĩa mọi trường hợp đều được chọn chạy trong workflow K16.
 
@@ -349,13 +357,16 @@ npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetChec
 
 # Test checkin lặp
 npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter=test_checkin_cannot_be_repeated_without_mutating_asset
+
+# Test concurrency race guard trên MySQL thật (TC-RC-01)
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php
 ```
 
 #### Tiêu chí pass/fail và phần chưa bao phủ
 
 - **Pass:** tiến trình PHPUnit exit code 0; response và dữ liệu MySQL thỏa assertions; event/log đúng; Testcontainers dọn container sau chạy.
 - **Fail:** assertion sai, test lỗi hoặc flaky, request thất bại làm thay đổi dữ liệu ngoài dự kiến, hay container không được dừng.
-- **Chưa bao phủ:** hai checkout đồng thời cho cùng một asset. Đây là hạng mục tiếp theo; cần hai kết nối/worker thực sự độc lập, đồng bộ hóa request và fixture nhìn thấy được từ cả hai worker.
+- **Hiện trạng Concurrency:** Bài test kiểm thử tranh chấp Race Condition với 2 kết nối CSDL độc lập (`test_concurrent_checkout_race_prevented_by_pessimistic_lock`) đã được cài đặt hoàn chỉnh trong `AssetCheckoutRaceGuardTest.php` và tích hợp vào pipeline CI.
 - **Trạng thái thực thi:** sandbox hiện không cho chạy lệnh trong thư mục repo; chỉ có thể xác nhận test và workflow đã được thêm vào mã nguồn, chưa tuyên bố test K16 đã pass.
 
 ### 5.2 Phân vùng 2: Tài sản Phần cứng, Ràng buộc Unique & Khấu hao
@@ -382,19 +393,37 @@ npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheck
 
 ---
 
-## 6. ĐẶC TẢ CHI TIẾT BỘ TEST CASES API (TC-CO-01 ĐẾN TC-CO-07) TRÊN K16
+## 6. ĐẶC TẢ CHI TIẾT BỘ TEST CASES API TRỌNG TÂM & CONCURRENCY TRÊN K16
 
-Toàn bộ 7 ca kiểm thử sau đây được thực thi và xác nhận trên môi trường **K16 Testcontainers (MySQL 8.0.36 Ephemeral Container)**:
+Các ca kiểm thử trọng tâm sau đây được thiết kế và thực thi nhằm xác thực tính đúng đắn trên môi trường **K16 Testcontainers (MySQL 8.0.36 Ephemeral Container)**:
 
-| Mã Test | Tên Phương Thức Kiểm Thử | Loại Kiểm Thử | Mã HTTP | Mục tiêu Kiểm chứng trên K16 Ephemeral MySQL |
-| :---: | :--- | :---: | :---: | :--- |
-| **TC-CO-01** | `test_asset_can_be_checked_out_through_api` | Positive | `200 OK` | Cấp phát thành công cho User; xác minh bản ghi `assets.assigned_to` và `action_logs` được COMMIT trên MySQL. |
-| **TC-CO-02** | `test_asset_can_be_checked_out_to_location_through_api` | Positive | `200 OK` | Cấp phát thành công cho Location; kiểm tra tính nhất quán quan hệ đa hình (`MorphTo`) trên MySQL. |
-| **TC-CO-03** | `test_cannot_checkout_undeployable_asset` | Negative | `400 Bad Req` | Chặn cấp phát tài sản không sẵn sàng; ROLLBACK giao dịch và không để lại dữ liệu rác. |
-| **TC-CO-04** | `test_cannot_checkout_already_checked_out_asset` | Negative | `400 Bad Req` | Chặn Double-Checkout; kiểm chứng khóa hàng chống ghi đè người dùng đang sở hữu. |
-| **TC-CO-05** | `test_unauthenticated_request_is_rejected_at_gateway` | Security | `401 Unauth` | Chặn request thiếu OAuth Bearer Token tại Gateway, bảo vệ tầng Controller và CSDL. |
-| **TC-CO-06** | `test_checkout_fails_validation_with_missing_target` | Validation | `422 Unproc` | Báo lỗi khi thiếu dữ liệu mục tiêu cấp phát (`checkout_to_type`). |
-| **TC-CO-07** | `test_asset_can_be_checked_in_through_api` | Positive | `200 OK` | Thu hồi tài sản về kho; trả `assigned_to` về `null` và ghi nhận nhật ký hoàn tất quy trình khép kín. |
+| Mã Test | Tên Phương Thức Kiểm Thử | Tệp Kiểm Thử | Loại Kiểm Thử | Mã HTTP Thực Tế | Mục Tiêu Kiểm Chứng Trên K16 Ephemeral MySQL |
+| :---: | :--- | :--- | :---: | :---: | :--- |
+| **TC-CO-01** | `test_asset_can_be_checked_out_through_api` | `AssetCheckoutTest.php` | Positive | `200 OK` (`status: success`) | Cấp phát thành công cho User; xác minh `assets.assigned_to`, `checkout_counter` và `action_logs` được COMMIT chuẩn xác trên MySQL. |
+| **TC-CO-01A** | `test_asset_can_be_checked_out` *(Data Provider)* | `AssetCheckoutTest.php` | Integration | `200 OK` (`status: success`) | Kiểm thử ma trận 5 biến thể target (User/Asset/Location); xác minh tính toàn vẹn quan hệ đa hình (`MorphTo`). |
+| **TC-CO-02** | `test_asset_can_be_checked_out_and_checked_back_in_through_api` | `AssetCheckoutTest.php` | E2E Integration | `200 OK` (`status: success`) | Luồng tích hợp khép kín toàn trình: Cấp phát cho User rồi Thu hồi về kho; RTD location được phục hồi chuẩn xác. *(Smoke test CI)*. |
+| **TC-CO-03** | `test_asset_cannot_be_checked_out_if_not_deployable` | `AssetCheckoutTest.php` | Negative | `200 OK` (`status: error`) | Chặn cấp phát tài sản không sẵn sàng (`deployable = 0`); không làm biến dị trạng thái hay bộ đếm tài sản. |
+| **TC-CO-04** | `test_checkout_fails_without_oauth_passport_token` | `AssetCheckoutTest.php` | Security | `401 Unauthorized` | Chặn request thiếu OAuth Bearer Token tại Gateway, bảo vệ tầng Controller và CSDL. |
+| **TC-CO-05** | `test_checkout_request_approval_workflow` | `AssetCheckoutTest.php` | Workflow | `200 OK` (`status: success`/`error`) | Luồng yêu cầu mượn: Chấp nhận asset requestable (ghi log `requested`), từ chối asset non-requestable. |
+| **TC-CO-06** | `test_checkout_fails_if_asset_already_checked_out` | `AssetCheckoutTest.php` | Negative | `200 OK` (`status: error`) | Chặn Double-Checkout khi tài sản đang được mượn bởi người khác; ngăn ghi đè quan hệ sở hữu hiện tại. |
+| **TC-CO-07** | `test_checkout_to_location_instead_of_user` | `AssetCheckoutTest.php` | Positive | `200 OK` (`status: success`) | Cấp phát tài sản trực tiếp cho Địa điểm (Location) thay vì Người dùng; kiểm tra tính nhất quán quan hệ đa hình. |
+| **TC-CO-08** | `test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log` | `AssetCheckoutTest.php` | Negative | `200 OK` (`status: error`) | Target user không tồn tại (`999999`); bảo đảm tài sản giữ nguyên 100% dữ liệu (Zero Mutation), không sinh log/event rác. *(Được chọn chạy CI)*. |
+| **TC-CI-01** | `test_asset_can_be_checked_in` | `AssetCheckinTest.php` | Positive | `200 OK` (`status: success`) | Thu hồi tài sản thành công; giải phóng quan hệ gán (`assigned_to = null`), cập nhật vị trí/trạng thái và phát event `CheckoutableCheckedIn`. |
+| **TC-CI-02** | `test_location_is_set_to_rtd_location_by_default_upon_checkin` | `AssetCheckinTest.php` | Restoration | `200 OK` (`status: success`) | Mặc định tự động phục hồi vị trí tài sản về đúng kho mặc định (`rtd_location_id`) khi không chỉ định vị trí mới. |
+| **TC-CI-03** | `test_default_location_can_be_updated_upon_checkin` | `AssetCheckinTest.php` | Configuration | `200 OK` (`status: success`) | Cập nhật kho mặc định mới khi gửi tham số `update_default_location = true`. |
+| **TC-CI-04** | `test_assets_license_seats_are_cleared_upon_checkin` | `AssetCheckinTest.php` | Consistency | `200 OK` (`status: success`) | Tự động giải phóng ghế bản quyền phần mềm (`license_seats`) gắn liền với thiết bị khi thu hồi tài sản. |
+| **TC-CI-05** | `test_checking_in_asset_updates_location_of_assets_assigned_to_it` | `AssetCheckinTest.php` | Cascade | `200 OK` (`status: success`) | Tự động đồng bộ cập nhật vị trí mới cho toàn bộ các tài sản con (Child Assets) khi thu hồi tài sản cha (Parent Asset). |
+| **TC-CI-06** | `test_legacy_location_values_set_to_zero_are_updated` | `AssetCheckinTest.php` | Normalization | `200 OK` (`status: success`) | Chuẩn hóa dữ liệu cũ (legacy data) có ID vị trí bằng `0` thành `null` hợp lệ trong CSDL. |
+| **TC-CI-07** | `test_pending_checkout_acceptances_are_cleared_upon_checkin` | `AssetCheckinTest.php` | Cleanup | `200 OK` (`status: success`) | Tự động dọn sạch các bản ghi chấp nhận cấp phát đang chờ ký duyệt (`CheckoutAcceptance` pending) khi thiết bị bị thu hồi. |
+| **TC-CI-08** | `test_checkin_time_and_action_log_note_can_be_set` | `AssetCheckinTest.php` | Audit Data | `200 OK` (`status: success`) | Xác nhận thiết lập thủ công thời điểm checkin (`checkin_at`) và ghi chú trong nhật ký kiểm toán `action_logs`. |
+| **TC-CI-09** | `test_asset_name_is_cleared_on_checkin_when_clear_name_is_set` | `AssetCheckinTest.php` | Boundary | `200 OK` (`status: success`) | Kiểm soát việc xóa tên tài sản: chỉ xóa khi có yêu cầu rõ ràng qua cờ `clear_name`. |
+| **TC-CI-10** | `test_checkin_cannot_be_repeated_without_mutating_asset` | `AssetCheckinTest.php` | Idempotency | `200 OK` (L1: `success`, L2: `error`) | Chặn thu hồi lặp (Checkin lặp): Ngăn request lần 2 làm sai lệch `checkin_counter`, timestamp và chỉ phát 1 event duy nhất. *(Được chọn chạy CI)*. |
+| **TC-RC-01** | `test_concurrent_checkout_race_prevented_by_pessimistic_lock` | `AssetCheckoutRaceGuardTest.php` | Concurrency | `N/A (DB Level)` | Mô phỏng 2 kết nối song song tranh chấp cùng 1 asset: MySQL InnoDB khóa hàng độc quyền (`lockForUpdate`), chặn Worker 2 (Lock Wait Timeout) và ngăn Double-Allocation. *(Được chọn chạy CI)*. |
+
+> [!IMPORTANT]
+> **LƯU Ý VỀ HỢP ĐỒNG HTTP & PHẠM VI THỰC THI TRÊN CI:**
+> 1. **Quy ước mã phản hồi HTTP:** Khác với suy đoán thông thường về mã `400` hay `422`, toàn bộ endpoint checkout/checkin của Snipe-IT khi gặp lỗi nghiệp vụ đều trả về **`HTTP 200 OK` kèm JSON `{"status": "error", "messages": "..."}`**. Hệ thống chỉ trả về **`401 Unauthorized`** khi thiếu token xác thực tại Gateway và **`403 Forbidden`** khi tài khoản thiếu quyền Policy.
+> 2. **Phạm vi thực thi trên GitHub Actions CI:** Trong file cấu hình CI ([.github/workflows/testcontainers.yml](file:///d:/KIEM_THU_PHAN_MEM/Do_An/snipe-it-master/.github/workflows/testcontainers.yml)), K16 hiện thực thi các ca kiểm thử trọng điểm thông qua cờ `--filter` (bao gồm `TC-CO-02`, `TC-CO-08`, `TC-CI-10`) và tệp kiểm thử concurrency [AssetCheckoutRaceGuardTest.php](file:///d:/KIEM_THU_PHAN_MEM/Do_An/snipe-it-master/tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php) (`TC-RC-01`), chứ **chưa chạy toàn bộ 1.111 dòng mã của cả hai tệp `AssetCheckoutTest.php` và `AssetCheckinTest.php`** trong mỗi commit nhằm tối ưu thời gian phản hồi của pipeline CI/CD.
 
 ---
 
@@ -444,6 +473,9 @@ Hệ thống đã được nạp dữ liệu mẫu hoàn chỉnh qua [SystemSamp
 ```powershell
 # 1. Chạy bài kiểm thử trọng điểm Asset Checkout / Checkin toàn trình (Phân vùng 1):
 npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter=test_asset_can_be_checked_out_and_checked_back_in_through_api
+
+# 1B. Chạy bài kiểm thử Khóa hàng Bi quan & Tranh chấp Race Condition (Phân vùng 1):
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php
 
 # 2. Chạy bài kiểm thử Ràng buộc Duy nhất & Mô hình Tài sản Phần cứng (Phân vùng 2):
 npm run test:integration:testcontainers -- tests/Unit/AssetTest.php

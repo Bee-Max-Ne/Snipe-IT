@@ -30,10 +30,70 @@
 
 - Checkout: `tests/Feature/Checkouts/Api/AssetCheckoutTest.php`
 - Checkin: `tests/Feature/Checkins/Api/AssetCheckinTest.php`
+- Race Guard & Concurrency: `tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php`
 - Runner K16: `tests/testcontainers/run.mjs`
 - Workflow CI: `.github/workflows/testcontainers.yml`
 
-## 2. BỐI CẢNH NGHIỆP VỤ & CƠ CHẾ KỸ THUẬT NỀN TẢNG
+## 2. PHÂN TÍCH CÔNG SỨC ĐẦU TƯ ĐỂ XÁC ĐỊNH ĐỐI TƯỢNG KIỂM THỬ (TEST OBJECT DISCOVERY & SCOPING EFFORT)
+
+Để xác định chính xác "cần kiểm thử cái gì" trong một hệ thống ERP/ITAM quy mô lớn như Snipe-IT, nhóm không thể chỉ nhìn từ giao diện người dùng (Black-box) mà phải đầu tư một khối lượng công sức kỹ thuật đáng kể vào việc bóc tách mã nguồn, phân tích lịch sử bảo mật, lượng hóa rủi ro và khảo sát hạ tầng kiểm thử.
+
+```mermaid
+flowchart TD
+    subgraph Discovery["4 TRỤ CỘT ĐẦU TƯ CÔNG SỨC ĐỂ XÁC ĐỊNH ĐỐI TƯỢNG KIỂM THỬ"]
+        P1["1. ĐẦU TƯ BÓC TÁCH MÃ NGUỒN<br/>(White-box Code Inspection)<br/>• Soi DB::transaction & lockForUpdate<br/>• Soi if/else availableForCheckout<br/>• Soi quan hệ đa hình MorphTo"]
+        P2["2. ĐẦU TƯ PHÂN TÍCH LỊCH SỬ LỖI<br/>(Defect & CVE History)<br/>• Tra cứu GHSA-6hxf-hqrc-wfrp<br/>• Bắt lỗi HTTP 200 {status: error}<br/>• Phân tích rò rỉ dữ liệu tenant"]
+        P3["3. ĐẦU TƯ ĐÁNH GIÁ RỦI RO NGHIỆP VỤ<br/>(Impact & Risk Analysis)<br/>• Cấp phát trùng (Double-Allocation)<br/>• Treo bản quyền License Seats<br/>• Biến dị dữ liệu dở dang (Zero-Mutation)"]
+        P4["4. ĐẦU TƯ KIỂM TOÁN TEST NỀN & CI<br/>(Test Suite & Infra Audit)<br/>• Soi 1.100 dòng test hiện có<br/>• Tìm lỗ hổng test lặp & race condition<br/>• Tối ưu thời gian CI qua --filter"]
+    end
+
+    P1 --> SUT["ĐỊNH HÌNH BỘ TEST SUITE TRỌNG TÂM K16<br/>(TC-CO-01 đến TC-CO-08, TC-CI-01, TC-RC-01)"]
+    P2 --> SUT
+    P3 --> SUT
+    P4 --> SUT
+```
+
+### 2.1. Trụ Cột 1: Đầu Tư Đọc & Bóc Tách Mã Nguồn (White-box Code Inspection)
+
+Nhóm đã trực tiếp mở mã nguồn tầng lõi của hệ thống để phân tích chi tiết từng luồng thực thi:
+- **Soi các câu lệnh thao tác CSDL tầng thấp:** Khi đọc `App\Http\Controllers\Api\AssetsController` (các dòng 1177–1182 và 1450–1463), nhóm phát hiện khối lệnh checkout được bọc trong `DB::transaction()` và thực hiện `Asset::whereKey($asset->id)->lockForUpdate()->first()` để đọc lại dữ liệu trên hàng đã khóa độc quyền (X-Lock).
+  - *Ý nghĩa đầu tư:* Đây là phát hiện then chốt chứng minh hệ thống xử lý tranh chấp ở tầng Storage Engine InnoDB của MySQL. Nhờ vậy, nhóm xác định việc kiểm thử trên SQLite `:memory:` là hoàn toàn vô nghĩa (vì SQLite compiler tự loại bỏ mệnh đề `FOR UPDATE`), từ đó quyết định đầu tư hạ tầng **K16 Testcontainers (Docker MySQL 8.0.36)** để kiểm chứng thật cơ chế khóa hàng này.
+- **Soi các nhánh điều kiện (if/else) và ngoại lệ nghiệp vụ:**
+  - Nhánh kiểm tra `availableForCheckout()` và cờ `deployable` của trạng thái tài sản $\rightarrow$ Định hình nên **TC-CO-01** (thành công) và **TC-CO-03** (từ chối tài sản hỏng/undeployable).
+  - Nhánh xử lý quan hệ đa hình (`MorphTo` target: User, Location, Asset) $\rightarrow$ Định hình nên **TC-CO-01A** (ma trận 5 biến thể target) và **TC-CO-07** (cấp phát trực tiếp cho Location).
+  - Nhánh ghi nhật ký kiểm toán qua `AssetObserver` $\rightarrow$ Định hình các assertions kiểm tra tính toàn vẹn của bảng `action_logs` và event `CheckoutableCheckedOut`.
+
+### 2.2. Trụ Cột 2: Đầu Tư Phân Tích Lịch Sử Lỗi & Lỗ Hổng Bảo Mật (Defect & CVE History)
+
+Thay vì kiểm thử ngẫu nhiên, nhóm đầu tư nghiên cứu các điểm yếu lịch sử của Snipe-IT thông qua kho lưu trữ lỗi và các bản tin an ninh (Security Advisories):
+- **Phân tích lỗ hổng GHSA-6hxf-hqrc-wfrp:** Nghiên cứu mã khai thác PoC và bản vá lỗi liên quan đến Actor có bảng pivot rỗng (`null tenant`) có thể checkout tài sản sang công ty khác khi đang bật chế độ đa công ty (Strict FMCS).
+  - *Ý nghĩa đầu tư:* Giúp nhóm khoanh vùng chính xác đối tượng kiểm thử liên quan đến ranh giới công ty, xây dựng các ca kiểm thử bảo mật cho ma trận Full Multiple Companies Support (FMCS) và Floater Mode.
+- **Nhận diện đặc thù giao thức của hệ thống (HTTP Contract):** Khi thực hiện các cuộc gọi API khảo sát, nhóm nhận thấy Snipe-IT không tuân thủ quy ước RESTful thông thường (không trả `400 Bad Request` hay `422 Unprocessable Entity` khi vi phạm logic nghiệp vụ), mà luôn trả về **`HTTP 200 OK` kèm body JSON `{"status": "error", "messages": "..."}`**.
+  - *Ý nghĩa đầu tư:* Giúp nhóm tránh được sai lầm phổ biến là assert mã HTTP 400/422, thay vào đó đầu tư xây dựng các custom assertions kiểm tra cấu trúc payload JSON (`assertStatusMessageIs('error')`), chỉ kiểm tra `401 Unauthorized` tại Gateway xác thực và `403 Forbidden` tại Policy phân quyền.
+
+### 2.3. Trụ Cột 3: Đầu Tư Phân Tích Tác Động Nghiệp Vụ & Rủi Ro Dữ Liệu (Impact & Risk Analysis)
+
+Mỗi container MySQL chạy qua Testcontainers đều tốn tài nguyên CPU/RAM và thời gian khởi tạo. Do đó, nhóm đầu tư phân tích ma trận rủi ro để ưu tiên kiểm thử các điểm "nếu hỏng sẽ gây thiệt hại nặng nề nhất cho doanh nghiệp":
+- **Rủi ro Toàn vẹn Tài sản & Thất thoát Tài chính (Critical Risk):**
+  - Cấp phát trùng 1 tài sản cho 2 nhân viên (Double Allocation) do Race Condition.
+  - Thu hồi máy tính (Checkin) nhưng ghế bản quyền phần mềm (`license_seats`) đắt tiền không được giải phóng tự động, gây lãng phí chi phí bản quyền.
+  - Gửi request sai (target không tồn tại) nhưng hệ thống lại cập nhật dở dang trạng thái hoặc vị trí của tài sản (State Mutation).
+  - *Giải pháp đầu tư:* Ưu tiên tuyệt đối cho các ca kiểm thử **TC-CO-06** (chống Double-Checkout), **TC-CO-08** (Zero Mutation khi target sai), **TC-CI-04** (thu hồi License Seat) và **TC-CI-10** (chống checkin lặp).
+- **Rủi ro Bảo mật & Phân Quyền Tổ Chức (High Risk):**
+  - Người dùng không có token vẫn gọi được endpoint xuất kho, hoặc nhân viên phòng ban này xuất trộm tài sản của phòng ban khác.
+  - *Giải pháp đầu tư:* Thiết lập nghiêm ngặt các chốt chặn kiểm thử **TC-CO-04** (bắt buộc OAuth Token) và kiểm tra Policy quyền hạn.
+
+### 2.4. Trụ Cột 4: Đầu Tư Khảo Sát Hiện Trạng Test Suite & Tối Ưu Hạ Tầng (Test Suite & Infra Audit)
+
+Trước khi viết mới, nhóm đã đầu tư thời gian rà soát, đánh giá toàn bộ hơn 1.100 dòng test hiện có của cộng đồng Snipe-IT trong hai tệp `AssetCheckoutTest.php` và `AssetCheckinTest.php`:
+- **Phân loại những gì đã có:** Các ca kiểm thử cơ bản (checkout thành công cho user, data provider 5 biến thể target, khôi phục location mặc định) đã được cộng đồng viết tương đối tốt.
+- **Khoanh vùng các lỗ hổng kiểm thử (Test Gaps):**
+  1. Chưa có test kiểm chứng việc request checkout thất bại do target sai thì dữ liệu tài sản phải **giữ nguyên 100% không bị biến dị** $\rightarrow$ Nhóm bổ sung **TC-CO-08**.
+  2. Chưa có test kiểm chứng việc gửi request checkin lần 2 liên tiếp không được phép làm sai lệch bộ đếm `checkin_counter` và thời gian $\rightarrow$ Nhóm bổ sung **TC-CI-10**.
+  3. Bộ test hiện tại hoàn toàn chạy tuần tự từng lệnh, chưa chứng minh được cơ chế chống Race Condition khi có 2 kết nối CSDL tranh chấp đồng thời $\rightarrow$ Nhóm bổ sung **TC-RC-01** (mô phỏng 2 kết nối song song trên MySQL InnoDB).
+- **Cân đối chi phí hạ tầng CI/CD:** Nhận thấy việc chạy toàn bộ hơn 1.100 dòng test qua Docker container trên GitHub Actions sẽ mất hàng chục phút mỗi lần commit $\rightarrow$ Quyết định đầu tư cơ chế lọc (`--filter`) để chỉ chạy các smoke test và test rủi ro cao nhất trên CI, trong khi bộ test đầy đủ vẫn có thể kích hoạt linh hoạt ở môi trường cục bộ.
+
+## 3. BỐI CẢNH NGHIỆP VỤ & CƠ CHẾ KỸ THUẬT NỀN TẢNG
 
 ### 2.1. Vòng đời trạng thái tài sản
 
@@ -83,9 +143,9 @@ Kiểm thử xác minh trạng thái model sau khi nạp lại từ DB; ở các
 
 Một số test checkout kiểm tra quy tắc company/floater và đối tượng nhận thuộc công ty. Phạm vi này là các kịch bản cụ thể trong test suite, không thay thế đánh giá đầy đủ mọi tổ hợp cấu hình đa công ty.
 
-## 3. MÔI TRƯỜNG THỰC THI & CHIẾN LƯỢC KIỂM THỬ TỰ ĐỘNG
+## 4. MÔI TRƯỜNG THỰC THI & CHIẾN LƯỢC KIỂM THỬ TỰ ĐỘNG
 
-### 3.1. Thiết lập hạ tầng cô lập với Testcontainers
+### 4.1. Thiết lập hạ tầng cô lập với Testcontainers
 
 Runner `tests/testcontainers/run.mjs` sử dụng `@testcontainers/mysql` để khởi chạy MySQL `8.0.36` tạm thời. Runner tạo thông tin database/credential cho lần chạy, chuẩn bị cấu hình ứng dụng và khóa Passport trong bộ nhớ, gọi PHPUnit với các biến môi trường tương ứng, sau đó dừng container trong `finally`.
 
@@ -104,24 +164,61 @@ Runner `tests/testcontainers/run.mjs` sử dụng `@testcontainers/mysql` để 
 4. Lưu kết quả CI/log cần thiết nhưng không đưa password, private key hay dữ liệu bí mật vào artifact.
 5. Chỉ báo test là **PASS trên K16** khi có log của lần chạy thực tế với exit code thành công; test có trong source hoặc workflow mới chỉ thể hiện cấu hình, không phải bằng chứng đã chạy.
 
-Ví dụ chạy riêng từng test bằng PowerShell tại thư mục gốc repository:
+### Lệnh kiểm tra K16 theo từng đối tượng/nghiệp vụ
+
+Chạy các lệnh dưới đây trong PowerShell tại thư mục gốc repository. Mỗi lệnh khởi tạo một MySQL container riêng; có thể chạy riêng đúng ca cần kiểm tra.
 
 ```powershell
-# Checkout rồi checkin khép kín
-npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter=test_asset_can_be_checked_out_and_checked_back_in_through_api
+# 1. Tài sản: checkout thành công cho User
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_asset_can_be_checked_out_through_api'
 
-# Checkout target không hợp lệ, không gây thay đổi dữ liệu
-npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter=test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log
+# 2. Tài sản: checkout trực tiếp cho Location
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_checkout_to_location_instead_of_user'
 
-# Ngăn checkin lặp
-npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter=test_checkin_cannot_be_repeated_without_mutating_asset
+# 2A. Tài sản: checkout cho một Asset khác hoặc chặn tự gán
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_asset_checkout_infers_asset_target_when_checkout_to_type_omitted|test_asset_cannot_be_checked_out_to_itself'
+
+# 3. Tài sản: từ chối checkout khi không deployable hoặc đã được gán
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_asset_cannot_be_checked_out_if_not_deployable|test_checkout_fails_if_asset_already_checked_out'
+
+# 4. Target/validation: checkout target không hợp lệ không làm sai dữ liệu
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log'
+
+# 5. Authentication/authorization: thiếu token hoặc thiếu quyền checkout
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_checkout_fails_without_oauth_passport_token|test_checking_out_asset_requires_correct_permission'
+
+# 6. Checkout request: tài sản requestable và non-requestable
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_checkout_request'
+
+# 7. Vòng đời tài sản: checkout rồi checkin khép kín
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_asset_can_be_checked_out_and_checked_back_in_through_api'
+
+# 8. Checkin: quyền, trạng thái chưa checkout và cập nhật tài sản
+npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter='test_checking_in_asset_requires_correct_permission|test_cannot_check_in_asset_that_is_not_checked_out|test_asset_can_be_checked_in'
+
+# 9. Location: RTD location, default location và vị trí tài sản con
+npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter='test_location_is_set_to_rtd_location_by_default_upon_checkin|test_default_location_can_be_updated_upon_checkin|test_checking_in_asset_updates_location_of_assets_assigned_to_it'
+
+# 10. Đối tượng liên quan: giải phóng license seat và checkout acceptance
+npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter='test_assets_license_seats_are_cleared_upon_checkin|test_pending_checkout_acceptances_are_cleared_upon_checkin'
+
+# 11. Dữ liệu kiểm toán: ngày checkin và ghi chú
+npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter='test_checkin_time_and_action_log_note_can_be_set'
+
+# 12. Checkin lặp: request lần hai không thay đổi dữ liệu/event
+npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter='test_checkin_cannot_be_repeated_without_mutating_asset'
+
+# 13. Concurrency / Race Guard: kiểm chứng khóa bi quan 2 kết nối đồng thời (TC-RC-01)
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php
 ```
 
-## 4. ĐẶC TẢ CHI TIẾT CÁC TEST CASE
+`--filter` nhận tên method hoặc biểu thức regex để chạy một hay nhiều test. Đây là các lệnh chạy theo mục tiêu, không đồng nghĩa toàn bộ suite đã được thực thi.
+
+## 5. ĐẶC TẢ CHI TIẾT CÁC TEST CASE
 
 > Các mã TC trong báo cáo dùng để tham chiếu nghiệp vụ; tên phương thức là định danh kiểm tra trong mã nguồn. Với các ca lỗi nghiệp vụ, một số endpoint trả HTTP 200 cùng JSON `status: error`; không nên tự gán HTTP 400/422 nếu chưa được assertion hoặc hợp đồng API xác nhận.
 
-### 4.1. Checkout
+### 5.1. Checkout
 
 #### TC-CO-01 — Checkout thành công cho người dùng qua API
 
@@ -194,7 +291,7 @@ npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheck
 - **Kỳ vọng:** Response status `error`; `assigned_to`/`assigned_type` vẫn rỗng; location/status/counter không đổi; không tạo action log checkout và không phát event checkout.
 - **Trạng thái K16:** Đã thêm vào mã nguồn và có bước dự kiến trong workflow CI; trạng thái PASS cần xác minh từ CI run.
 
-### 4.2. Checkin
+### 5.2. Checkin
 
 #### TC-CI-01 — Checkin thành công và cập nhật thông tin tài sản
 
@@ -277,29 +374,40 @@ npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheck
 - **Kỳ vọng:** Lần đầu `success`, lần hai `error`; assignment vẫn rỗng; counter và timestamp giữ nguyên so với sau lần đầu; event `CheckoutableCheckedIn` chỉ được phát một lần.
 - **Trạng thái K16:** Đã thêm vào mã nguồn và có bước dự kiến trong workflow CI; trạng thái PASS cần xác minh từ CI run.
 
-### 4.3. Nhóm kiểm thử bổ sung đang có trong hai tệp
+#### TC-RC-01 — Kiểm chứng khóa bi quan chống Race Condition với 2 kết nối đồng thời
+
+- **Tệp kiểm thử:** `tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php`
+- **Phương thức:** `test_concurrent_checkout_race_prevented_by_pessimistic_lock` và `test_checkout_issues_pessimistic_row_lock_inside_transaction`
+- **Loại:** Concurrency / Pessimistic Locking Validation.
+- **Tiền điều kiện:** CSDL MySQL 8.0.36 trên K16 container (hỗ trợ InnoDB row-level locking); 2 kết nối CSDL độc lập (`mysql` và `mysql_worker`).
+- **Thao tác:** Luồng 1 mở transaction và chiếm khóa độc quyền `lockForUpdate()`. Luồng 2 kết nối riêng biệt cố gắng tranh chấp cùng một bản ghi với timeout ngắn (`innodb_lock_wait_timeout = 1`).
+- **Kỳ vọng:** Luồng 2 bị chặn và ném ngoại lệ `Lock wait timeout exceeded` (MySQL Error 1205); sau khi Luồng 1 hoàn tất checkout và commit, Luồng 2 kiểm tra `availableForCheckout()` nhận giá trị `false`, ngăn chặn hoàn toàn Double-Allocation và giữ `checkout_counter = 1`.
+
+### 5.3. Nhóm kiểm thử bổ sung đang có trong hai tệp
 
 Ngoài các trường hợp mô tả ở trên, test suite còn có kiểm tra quyền checkout/checkin, asset không tồn tại, asset không sẵn sàng/chưa checkout, các biến thể target và payload, quy tắc company/floater, location khi checkin, license seats, asset con, acceptance và action event. Cần xem trực tiếp từng method/assertion trước khi đưa một test cụ thể vào danh sách “đã chạy K16”.
 
-## 5. TIÊU CHÍ PASS/FAIL, KẾT QUẢ VÀ GIỚI HẠN
+> [!IMPORTANT]
+> **Lưu ý về phạm vi thực thi trên GitHub Actions CI:**
+> Trong file cấu hình CI (`.github/workflows/testcontainers.yml`), K16 hiện thực thi các ca kiểm thử trọng điểm thông qua cờ `--filter` (bao gồm `test_asset_can_be_checked_out_and_checked_back_in_through_api`, `test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log`, `test_checkin_cannot_be_repeated_without_mutating_asset`) và tệp kiểm thử khóa bi quan concurrency `tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php` (`TC-RC-01`), chứ **chưa chạy toàn bộ 1.111 dòng mã của cả hai tệp `AssetCheckoutTest.php` và `AssetCheckinTest.php`** trong mỗi commit nhằm tối ưu thời gian phản hồi của pipeline CI/CD.
 
-### 5.1. Tiêu chí nghiệm thu
+## 6. TIÊU CHÍ PASS/FAIL, KẾT QUẢ VÀ GIỚI HẠN
+
+### 6.1. Tiêu chí nghiệm thu
 
 - **PASS:** PHPUnit exit code `0`; response đúng hợp đồng API; dữ liệu nạp lại từ MySQL đáp ứng assertions; event/log đúng theo ca; runner kết thúc và dọn container.
 - **FAIL:** PHPUnit báo assertion/test error, tiến trình trả exit code khác `0`, dữ liệu bị thay đổi sai khi request lỗi, hoặc container không được dọn theo quy trình.
 - Mỗi lần chạy cần lưu commit SHA, phiên bản PHP/Node, image MySQL, lệnh thực thi, thời lượng và kết quả CI. Không lưu secret trong log/artifact.
 
-### 5.2. Trạng thái bằng chứng hiện có
+### 6.2. Trạng thái bằng chứng hiện có
 
-- Hai test mới — checkout target không hợp lệ và checkin lặp — đã được thêm vào mã nguồn.
+- Các test mới — checkout target không hợp lệ, checkin lặp và kiểm thử concurrency khóa bi quan 2 kết nối (`TC-RC-01`) — đã được hoàn thiện và tích hợp vào mã nguồn.
 - Workflow K16 có cấu hình bước chạy smoke test checkout–checkin và các test mới.
 - Không có kết quả PHPUnit/Testcontainers/CI run được đính kèm trong báo cáo này. Vì vậy, các test mới được ghi nhận là **đã cài đặt trong source**, không phải **đã xác nhận PASS trên K16**.
 - Test checkout request hiện chưa bao phủ bước admin phê duyệt.
-- Chưa có kiểm thử concurrency với hai request/worker độc lập. Việc gọi hai request lần lượt không đủ để chứng minh chống race condition.
 
-### 5.3. Công việc tiếp theo
+### 6.3. Công việc tiếp theo
 
 1. Chạy từng test được chọn trên máy có Docker hoạt động và lưu log kết quả cùng commit SHA.
 2. Xác nhận workflow GitHub Actions thực sự nhận và truyền chính xác các đối số PHPUnit trước khi xem kết quả CI là bằng chứng.
-3. Bổ sung concurrency test checkout bằng hai kết nối/worker độc lập, fixture dùng chung nhìn thấy được và đồng bộ thời điểm gửi request; xác nhận chỉ một request có thể cấp phát asset.
-4. Nếu phạm vi yêu cầu kiểm thử toàn bộ request approval, bổ sung bước admin duyệt và assertion chuyển trạng thái thay vì suy rộng từ test gửi request hiện tại.
+3. Nếu phạm vi yêu cầu kiểm thử toàn bộ request approval, bổ sung bước admin duyệt và assertion chuyển trạng thái thay vì suy rộng từ test gửi request hiện tại.

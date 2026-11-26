@@ -54,6 +54,11 @@ jobs:
           tests/Feature/Checkins/Api/AssetCheckinTest.php
           --filter='test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log|test_checkin_cannot_be_repeated_without_mutating_asset'
 
+      - name: Run concurrency race guard test
+        run: >-
+          npm run test:integration:testcontainers --
+          tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php
+
       - name: Upload Laravel logs
         if: always()
         uses: actions/upload-artifact@v4
