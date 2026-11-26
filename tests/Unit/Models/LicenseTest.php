@@ -8,6 +8,10 @@ use App\Models\User;
 use Carbon\Carbon;
 use Tests\TestCase;
 
+/**
+ * TC-LC-01 (Phân vùng 3 – Nguyễn Đình Thạch, 2314506): tính toán ghế license – ghi log thêm/bớt ghế,
+ * phần trăm ghế còn lại và đếm ghế trống (availSeatsCount).
+ */
 class LicenseTest extends TestCase
 {
     public function test_adding_seats_is_logged_when_updating()

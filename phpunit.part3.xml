@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phân vùng 3 – Nguyễn Đình Thạch (2314506)
+  Bản quyền phần mềm, Phụ kiện, Linh kiện, Vật tư tiêu hao & hạ tầng K16.
+  Chạy qua runner K16 (MySQL 8.0.36 tạm), KHÔNG chạy vendor/bin/phpunit trực tiếp.
+  Lệnh chạy: xem mục 3.3 của KE_HOACH_TRIEN_KHAI_PHAN_VUNG_3.md
+  (XML không cho phép hai dấu gạch ngang liền nhau trong chú thích.)
+  TC-INF-01 (dọn container khi crash) là test Node.js riêng: npm run test:k16:infra
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         backupGlobals="false"
+         backupStaticProperties="false"
+         bootstrap="bootstrap/autoload.php"
+         cacheDirectory=".phpunit.cache"
+         colors="true"
+         processIsolation="false"
+         stopOnFailure="false"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+>
+  <testsuites>
+    <!-- TC-LC-01..05: license, ghế license, product key -->
+    <testsuite name="Part3Licenses">
+      <file>./tests/Unit/Models/LicenseTest.php</file>
+      <directory>./tests/Feature/Licenses</directory>
+      <directory>./tests/Feature/LicenseSeats</directory>
+    </testsuite>
+    <!-- TC-AC-01..02, TC-CP-01..02, TC-CS-01..02: phụ kiện, linh kiện, vật tư -->
+    <testsuite name="Part3AccessoriesComponentsConsumables">
+      <file>./tests/Feature/Accessories/Api/AccessoryQuantityOnCheckoutTest.php</file>
+      <file>./tests/Feature/Components/Api/ComponentAttachToAssetTest.php</file>
+      <file>./tests/Feature/Checkins/Api/ComponentCheckinTest.php</file>
+      <file>./tests/Feature/Checkouts/Api/ConsumableCheckoutTest.php</file>
+      <file>./tests/Feature/Consumables/ConsumableLowStockAlertTest.php</file>
+      <file>./tests/Feature/LowStockApiVisibilityTest.php</file>
+    </testsuite>
+  </testsuites>
+  <php>
+    <env name="APP_ENV" value="testing"/>
+    <env name="BCRYPT_ROUNDS" value="4"/>
+    <env name="CACHE_DRIVER" value="array"/>
+    <env name="MAIL_FROM_ADDR" value="app@example.com"/>
+    <env name="MAIL_MAILER" value="array"/>
+    <env name="QUEUE_CONNECTION" value="sync"/>
+    <env name="SESSION_DRIVER" value="array"/>
+    <ini name="display_errors" value="true"/>
+    <ini name="memory_limit" value="1G"/>
+  </php>
+  <source>
+    <include>
+      <file>app/Models/License.php</file>
+      <file>app/Models/LicenseSeat.php</file>
+      <file>app/Models/Accessory.php</file>
+      <file>app/Models/Component.php</file>
+      <file>app/Models/Consumable.php</file>
+      <file>app/Models/Traits/AdjustsQuantity.php</file>
+      <file>app/Http/Controllers/Api/LicensesController.php</file>
+      <file>app/Http/Controllers/Api/LicenseSeatsController.php</file>
+      <file>app/Http/Controllers/Api/AccessoriesController.php</file>
+      <file>app/Http/Controllers/Api/ComponentsController.php</file>
+      <file>app/Http/Controllers/Api/ConsumablesController.php</file>
+      <file>app/Console/Commands/SendInventoryAlerts.php</file>
+    </include>
+  </source>
+  <logging>
+    <junit outputFile="storage/logs/test-reports/junit_part3_report.xml"/>
+  </logging>
+</phpunit>

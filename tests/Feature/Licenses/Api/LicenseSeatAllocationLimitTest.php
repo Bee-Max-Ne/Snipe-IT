@@ -7,8 +7,13 @@ use App\Models\LicenseSeat;
 use App\Models\User;
 use Tests\TestCase;
 
+/**
+ * TC-LC-03, TC-LC-05 (Phân vùng 3 – Nguyễn Đình Thạch, 2314506): giới hạn cấp phát ghế license và
+ * thu hồi/cấp lại ghế.
+ */
 class LicenseSeatAllocationLimitTest extends TestCase
 {
+    /** TC-LC-03: cấp đủ số ghế, yêu cầu vượt số ghế bị từ chối. */
     public function test_license_seat_allocation_limits(): void
     {
         $license = License::factory()->create(['seats' => 5]);
@@ -41,6 +46,7 @@ class LicenseSeatAllocationLimitTest extends TestCase
         $this->assertEquals(5, $license->fresh()->licenseseats()->count());
     }
 
+    /** TC-LC-05: ghế đã thu hồi được cấp lại cho người dùng tiếp theo. */
     public function test_checked_in_seat_can_be_allocated_to_the_next_user(): void
     {
         $license = License::factory()->create(['seats' => 2, 'reassignable' => true]);
@@ -67,6 +73,7 @@ class LicenseSeatAllocationLimitTest extends TestCase
         $this->assertEquals(0, $license->fresh()->numRemaining());
     }
 
+    /** TC-LC-05: số ghế trống trả về qua API phản ánh đúng việc cấp/thu hồi. */
     public function test_free_seat_count_in_api_reflects_allocations(): void
     {
         $license = License::factory()->create(['seats' => 5]);

@@ -7,6 +7,10 @@ use App\Models\User;
 use Illuminate\Testing\Fluent\AssertableJson;
 use Tests\TestCase;
 
+/**
+ * TC-LC-02 (Phân vùng 3 – Nguyễn Đình Thạch, 2314506): che product key với người dùng không có quyền
+ * licenses.keys, hiển thị đầy đủ với người có quyền.
+ */
 class LicenseProductKeyMaskingTest extends TestCase
 {
     public function test_product_key_masking(): void

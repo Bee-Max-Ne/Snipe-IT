@@ -6,8 +6,12 @@ use App\Models\Accessory;
 use App\Models\User;
 use Tests\TestCase;
 
+/**
+ * TC-AC-01, TC-AC-02 (Phân vùng 3 – Nguyễn Đình Thạch, 2314506): số lượng phụ kiện khi checkout/checkin.
+ */
 class AccessoryQuantityOnCheckoutTest extends TestCase
 {
+    /** TC-AC-01: checkout làm giảm số lượng còn lại. */
     public function test_accessory_quantity_adjusts_on_checkout(): void
     {
         $accessory = Accessory::factory()->create(['qty' => 10]);
@@ -30,6 +34,7 @@ class AccessoryQuantityOnCheckoutTest extends TestCase
         $this->assertEquals(8, $accessory->numRemaining());
     }
 
+    /** TC-AC-02: checkin hoàn lại số lượng còn lại. */
     public function test_checkin_restores_remaining_quantity(): void
     {
         $accessory = Accessory::factory()->create(['qty' => 10]);
@@ -55,6 +60,7 @@ class AccessoryQuantityOnCheckoutTest extends TestCase
         $this->assertEquals(0, $accessory->checkouts()->count());
     }
 
+    /** TC-AC-01: không checkout vượt số lượng còn lại. */
     public function test_cannot_checkout_more_than_remaining_quantity(): void
     {
         $accessory = Accessory::factory()->create(['qty' => 3]);
