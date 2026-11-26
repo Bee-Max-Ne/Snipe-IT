@@ -12,7 +12,8 @@
         "prod": "npm run production",
         "production": "mix --production",
         "screenshotter": "node .screenshotter/src/screenshotter.mjs",
-        "test:integration:testcontainers": "node tests/testcontainers/run.mjs"
+        "test:integration:testcontainers": "node tests/testcontainers/run.mjs",
+        "test:k16:infra": "node --test tests/testcontainers/crash-cleanup.test.mjs"
     },
     "engines": {
         "node": ">=0.12"
