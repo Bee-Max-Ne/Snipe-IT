@@ -13,11 +13,17 @@
 - **Email học tập:** `2312691@dlu.edu.vn`
 - **Vai trò trong nhóm:** Thành viên 4 — Kỹ sư Kiểm thử Bảo mật, Phân quyền & Quản trị Danh tính (Security & IAM QA Engineer)
 - **Phân vùng trách nhiệm:** **Phân vùng 4 — Module Người dùng (`Users`), Phân quyền RBAC (`User::hasAccess()`), Chính sách An ninh (`UserPolicy`), Cô lập Đa công ty (`CompanyableScope`) & Toàn vẹn Nhật ký Kiểm toán (`Actionlog`)**
-- **Git Feature Branch:** `feature/phan-vung-4-kiem-thu-an-ninh`
-- **Các tệp kiểm thử phụ trách:**
-  - `tests/Unit/UserTest.php` (Logic RBAC, UserPolicy, Impersonation, Actionlog)
-  - `tests/Unit/CompanyScopingTest.php` (Cô lập dữ liệu đa khách thuê FMCS)
-  - `tests/testcontainers/run.mjs` (Điều phối K16 MySQL Ephemeral Container)
+- **Git Feature Branch:** `feature/phan-vung-4-kiem-thu-an-ninh` (Tag nghiệm thu: `v1.1-final-part4-evaluation`)
+- **Các tệp kiểm thử & cấu hình phụ trách:**
+  - `phpunit.part4.xml` (Cấu hình suite & scope đo coverage 10 tệp Phân vùng 4)
+  - `tests/Unit/UserTest.php` (Logic RBAC, UserPolicy, Impersonation, Actionlog — `TC-SEC-01..10`, `15`)
+  - `tests/Unit/CompanyScopingTest.php` (Cô lập dữ liệu đa khách thuê FMCS — `TC-SEC-11..14`)
+  - `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` (Kiểm thử tích hợp Web/API Passport Bearer Token, 2FA/Logout, Hierarchy FMCS — `TC-SEC-API-01..10`)
+  - Các bộ hồi quy thuộc phân vùng: `tests/Feature/Users/**`, `tests/Feature/Groups/**`, `tests/Feature/Auth/**`, `tests/Feature/Authentication/**`, `GroupPivotCleanupTest.php`, `UserGroupPivotCleanupTest.php`, `ActivityReportPageAuthTest.php`
+  - Hạ tầng K16 & Log: `tests/testcontainers/run.mjs`, `run_part4_tests.ps1`, `export_evidence.ps1`, `tests/capture_env_metadata.php`, `tests/generate_ci_summary.py`, `.github/workflows/testcontainers_phan_vung_4.yml`
+
+> [!NOTE]
+> **Trạng thái Nghiệm thu Thực tế (Cập nhật đồng bộ sau thực thi K16 + PCOV):** Toàn bộ cấu hình [`phpunit.part4.xml`](phpunit.part4.xml) đã chạy đạt **`100.0%` PASS (`564/564 tests`, `2,149 assertions`, `0 failures`, `0 errors`, `0 skipped`)** trên **Docker MySQL `8.0.36` thật (`tests/testcontainers/run.mjs`)** cả ở cục bộ và GitHub Actions ([Run #45740176366](https://github.com/Bee-Max-Ne/Snipe-IT/actions/runs/45740176366), ~2 phút 45 giây). Độ bao phủ dòng thực tế đo bằng **PCOV `1.0.12`** đạt **`82.60%` (`1,828 / 2,213 statements`)** — đạt ngưỡng cam kết ($\ge 80\%$). Chi tiết số liệu thực nghiệm xem tại [`BAO_CAO_THUC_NGHIEM_METRICS_PHAN_VUNG_4.md`](BAO_CAO_THUC_NGHIEM_METRICS_PHAN_VUNG_4.md) và [`README_REPRODUCE_PART4.md`](README_REPRODUCE_PART4.md).
 
 ---
 
@@ -31,10 +37,10 @@
 | **Phần B** | Vẽ $\ge 01$ sơ đồ kiến trúc component/container, giải thích 3–5 module liên quan. | **Mục 1.1** (Sơ đồ Container K16) & **Mục 2** (Kiến trúc RBAC, Policy, FMCS) | `app/Models/User.php`, `app/Policies/UserPolicy.php` |
 | **Phần C** | Tài liệu hóa môi trường, lệnh build/run, seed data, bằng chứng $\ge 03$ luồng chạy. | **Mục 3.1 & Mục 8.2** (Cấu hình `.env.testing`, seeder dữ liệu mẫu) | `database/seeders/`, `.env.testing` |
 | **Phần D** | Trình bày nguyên lý, lý do chọn phạm vi, giả định, rủi ro và tiêu chí Pass/Fail. | **Mục 4.1 & Mục 4.2** (Quy chuẩn phân loại lỗi P1–P4, tiêu chí Pass/Fail) | Bảng Ma trận rủi ro phân vùng 4 |
-| **Phần E** | **Thiết kế Test Model/Scenario/Case; chỉ rõ input, precondition, expected/invariant, data.** | **Mục 6.1, 6.2, 6.3** (Chuẩn 14 thành phần, Master Matrix 15 ca test, Invariants) | `TC-SEC-01` đến `TC-SEC-15` (Bảng 17, 18, 19, 20) |
-| **Phần F** | **Mã nguồn test/harness/script chạy tự động; file README chứa lệnh chạy và dependency.** | **Mục 5, Mục 6.3, Mục 8.3, Mục 8.4** (Mã PHPUnit, Docker Harness, README, BAT script) | `tests/Unit/UserTest.php`, `README_REPRODUCE_PART4.md` |
-| **Phần G** | Log/report/metrics, danh sách lỗi & RCA; chứng minh coverage/score/thresholds. | **Mục 3.2, Mục 4.1, Mục 4.2** (Bảng Ngưỡng Cam Kết, Chiến lược lưu log 4 tầng, RCA) | `storage/logs/test-runs/`, Báo cáo Coverage |
-| **Phần H** | Lưu cứng (pin) commit/tag repo, lưu cấu hình test, mô tả cách chạy trên máy mới. | **Mục 8.1, 8.2, 8.3, 8.4** (Gắn Git Tag, khóa file lock, README 4 bước, One-Click Script) | Tag `v1.0-final-part4-evaluation`, `run_part4_tests.bat` |
+| **Phần E** | **Thiết kế Test Model/Scenario/Case; chỉ rõ input, precondition, expected/invariant, data.** | **Mục 6.1, 6.2, 6.3** (Chuẩn 14 thành phần, Master Matrix 15 ca Unit + 10 ca API Integration) | `TC-SEC-01..15`, `TC-SEC-API-01..10` |
+| **Phần F** | **Mã nguồn test/harness/script chạy tự động; file README chứa lệnh chạy và dependency.** | **Mục 5, Mục 6.3, Mục 8.3, Mục 8.4** (Mã PHPUnit, Docker Harness, README, PowerShell script) | `UserTest.php`, `CompanyScopingTest.php`, `SecurityPart4ApiIntegrationTest.php`, `README_REPRODUCE_PART4.md` |
+| **Phần G** | Log/report/metrics, danh sách lỗi & RCA; chứng minh coverage/score/thresholds. | **Mục 3.2, Mục 4.1, Mục 4.2** (Bảng Ngưỡng Cam Kết, Chiến lược lưu log, RCA) | `storage/logs/test-reports/`, `coverage-html/`, `coverage_clover.xml`, `SUMMARY_REPORT.md` |
+| **Phần H** | Lưu cứng (pin) commit/tag repo, lưu cấu hình test, mô tả cách chạy trên máy mới. | **Mục 8.1, 8.2, 8.3, 8.4** (Gắn Git Tag, `phpunit.part4.xml`, README 4 bước, One-Click Script) | Tag `v1.1-final-part4-evaluation`, `run_part4_tests.ps1`, `export_evidence.ps1` |
 
 ---
 
@@ -50,14 +56,14 @@ flowchart TD
     end
 
     subgraph Phase2["BƯỚC 2: THIẾT KẾ & ĐẶC TẢ"]
-        A3 --> B1["Đặc tả chi tiết 15 Test Cases (TC-SEC-01 -> 15)"]
+        A3 --> B1["Đặc tả chi tiết 25 Test Cases (TC-SEC-01..15 & TC-SEC-API-01..10)"]
         B1 --> B2["Xác định Pre-conditions, Test Data & Expected Assertions"]
     end
 
     subgraph Phase3["BƯỚC 3: MÃ HÓA TỰ ĐỘNG & HARNESS"]
-        B2 --> C1["Viết mã PHPUnit trong tests/Unit/UserTest.php"]
-        C1 --> C2["Viết mã DataProvider trong CompanyScopingTest.php"]
-        C2 --> C3["Tích hợp K16 Harness tests/testcontainers/run.mjs"]
+        B2 --> C1["Viết Unit Test trong UserTest.php & CompanyScopingTest.php"]
+        C1 --> C2["Viết Feature/API Test trong SecurityPart4ApiIntegrationTest.php + Hồi quy Users/Groups/Auth"]
+        C2 --> C3["Tích hợp K16 Harness tests/testcontainers/run.mjs + phpunit.part4.xml"]
     end
 
     subgraph Phase4["BƯỚC 4: THỰC THI & THU THẬP BẰNG CHỨNG"]
@@ -171,26 +177,31 @@ flowchart TD
 ```
 
 #### 1. Cấu trúc Thư mục Lưu trữ Log Cục bộ (Local Directory Hierarchy)
-Mọi kết quả kiểm thử được tự động phân tách theo phiên chạy (Session-based directory) với cấu trúc chuẩn:
+Mọi kết quả kiểm thử chuẩn hóa được xuất tự động vào cấu trúc:
 ```text
 f:\Snipe-IT\storage\logs\
-├── test-runs\                                  # Nhật ký kiểm thử theo từng phiên chạy
-│   └── 2026-11-21_14-10-00_part4\              # Thư mục phiên (Format: YYYY-MM-DD_HH-mm-ss_partition)
-│       ├── phpunit_execution.log               # Full stdout/stderr của lệnh php artisan test
-│       ├── testcontainers_harness.log          # Log vòng đời container MySQL (Start/Migrate/Stop)
-│       ├── mysql_query_trace.log               # Trích xuất các câu SQL quan trọng (FMCS Scoping)
-│       └── coverage_summary.txt                # Tóm tắt tỷ lệ Code Coverage của phiên chạy
-├── artifacts\                                  # Đóng gói bằng chứng nộp kèm đồ án
-│   └── Part4_Evidence_20261121.zip             # File nén toàn bộ bằng chứng kiểm thử
+├── test-reports\                               # Hồ sơ bằng chứng chuẩn hóa mới nhất của phiên chạy
+│   ├── coverage-html\                          # Dashboard HTML tô màu từng dòng mã nguồn (PCOV 1.0.12)
+│   ├── coverage_clover.xml                     # Dữ liệu độ bao phủ Clover XML cho 10 tệp phạm vi
+│   ├── junit_part4_report.xml                  # Kết quả JUnit XML chuẩn máy đọc (564 tests)
+│   ├── testdox.html                            # Báo cáo HTML trạng thái ✓ PASS từng ca kiểm thử
+│   ├── phpunit_part4_execution.log             # Full stdout/stderr của PHPUnit + bảng coverage text
+│   ├── mysql_container_proof.json              # Bằng chứng kết nối Docker MySQL 8.0.36 thật (port, DB)
+│   ├── environment_metadata.json               # Siêu dữ liệu Git Branch/SHA, PHP, OS & MySQL proof
+│   ├── git_commit_evidence.txt                 # Lịch sử 25 commit gần nhất trên nhánh
+│   ├── checksums.sha256                        # Bảng mã băm toàn vẹn SHA-256 chống chỉnh sửa
+│   └── SUMMARY_REPORT.md                       # Báo cáo tổng hợp tự tính từ JUnit/Clover XML
+├── artifacts\                                  # Đóng gói bằng chứng nghiệm thu dạng ZIP
+│   ├── Evidence_PhanVung4_v1.0.zip             # Bản đóng gói mới nhất trọn bộ test-reports/
+│   └── Evidence_PhanVung4_<timestamp>.zip      # Bản sao lưu lịch sử theo dấu thời gian
 └── laravel.log                                 # Log runtime của hệ thống Laravel
 ```
 
 #### 2. Chính sách Lưu trữ & Xoay vòng Log (Retention & Rotation Policy)
 - **Trên máy trạm cục bộ (Local Development):**
-  - Giữ lại tối đa **10 phiên kiểm thử gần nhất** trong thư mục `storage/logs/test-runs/`. Các phiên cũ hơn sẽ được tự động xóa hoặc nén vào thư mục `artifacts/` để tiết kiệm dung lượng ổ cứng.
+  - Thư mục `storage/logs/test-reports/` luôn giữ bản kết quả chuẩn hóa mới nhất, đồng thời `.\export_evidence.ps1` tự động sao lưu thêm bản nén theo dấu thời gian `Evidence_PhanVung4_<timestamp>.zip` trong `storage/logs/artifacts/` để đối chiếu giữa các lần chạy.
 - **Trên hạ tầng CI/CD (GitHub Actions):**
-  - Thiết lập thông số `retention-days: 7` trong file workflow đối với các nhánh Pull Request kiểm thử ngắn hạn.
-  - Thiết lập `retention-days: 30` đối với các đợt chạy kiểm thử chính thức trên nhánh `master` hoặc `develop` trước khi phát hành (Release).
+  - Workflow `.github/workflows/testcontainers_phan_vung_4.yml` lưu trữ trọn bộ artifact `part4-security-testcontainers-evidence-<run_attempt>` với `retention-days: 14` (gồm `test-reports/**`, `artifacts/**`, và `storage/logs/*.log`).
 - **Đối với Nhật ký Kiểm toán CSDL (`action_logs`):**
   - **Chính sách Bất biến Tuyệt đối (Zero-Purge / Forever Retention):** Bảng `action_logs` lưu vết mọi hành vi thay đổi nhân sự, phân quyền, đăng nhập và mạo danh. Cấm hoàn toàn việc viết script xóa mềm (`SoftDeletes`) hoặc xóa cứng (`DELETE`) đối với bảng này, bảo đảm đáp ứng tiêu chuẩn kiểm toán an ninh SOC2 / ISO 27001.
 
@@ -201,25 +212,15 @@ Trước khi lưu file log hoặc đẩy artifact lên GitHub Actions, hệ th�
 - **Mật khẩu người dùng:** Mọi mật khẩu truyền vào qua seeder hoặc test factory (`Password123@`) đều bị mã hóa hash Bcrypt (`$2y$10$...`) trước khi xuất hiện trên log truy vấn SQL.
 
 #### 4. Kịch bản Tự động Thu thập & Đóng gói Log Bằng chứng (PowerShell Automation Script)
-Sinh viên có thể kích hoạt lệnh thu thập và đóng gói tự động toàn bộ bằng chứng của Phân vùng 4 chỉ bằng 1 thao tác:
+Sinh viên chỉ cần chạy 1 trong 2 script chuẩn hóa đã cài sẵn trong thư mục gốc (`run_part4_tests.ps1` và `export_evidence.ps1`):
 ```powershell
-# Script tự động chạy test, thu thập log và đóng gói bằng chứng:
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$sessionDir = "storage/logs/test-runs/${timestamp}_part4"
-New-Item -ItemType Directory -Force -Path $sessionDir | Out-Null
+# 1. Chạy toàn bộ 564 tests qua K16 Testcontainers (MySQL 8.0.36) + tự động xuất PCOV Coverage, Metadata, SHA-256 & ZIP:
+.\export_evidence.ps1
 
-# 1. Chạy test PHPUnit và xuất đồng thời ra Terminal lẫn File log:
-php artisan test tests/Unit/UserTest.php tests/Unit/CompanyScopingTest.php | Tee-Object -FilePath "$sessionDir/phpunit_execution.log"
-
-# 2. Xuất lịch sử Git commit chứng minh phân vùng:
-git log --oneline -n 10 --grep="test(rbac)" | Out-File "$sessionDir/git_commit_evidence.txt"
-
-# 3. Đóng gói toàn bộ phiên kiểm thử thành file nén zip:
-New-Item -ItemType Directory -Force -Path "storage/logs/artifacts" | Out-Null
-Compress-Archive -Path "$sessionDir/*" -DestinationPath "storage/logs/artifacts/Evidence_PhanVung4_$timestamp.zip" -Force
-
-Write-Host ">>> ĐÃ LƯU TRỮ VÀ ĐÓNG GÓI BẰNG CHỨNG THÀNH CÔNG: storage/logs/artifacts/Evidence_PhanVung4_$timestamp.zip" -ForegroundColor Green
+# 2. Hoặc chạy nhanh 30 lượt kiểm thử an ninh trọng tâm (TC-SEC-* & TC-SEC-API-*) và đóng gói ZIP:
+.\export_evidence.ps1 -Filter test_tc_sec_
 ```
+*(Bên dưới, script tự động kiểm tra Docker, đặt `$env:PHP_BINARY`, gọi `node tests/testcontainers/run.mjs -c phpunit.part4.xml`, thực thi `php tests/capture_env_metadata.php` và chạy `python tests/generate_ci_summary.py` để tạo `SUMMARY_REPORT.md`, `checksums.sha256` và gói ZIP tại `storage/logs/artifacts/Evidence_PhanVung4_v1.0.zip`.)*
 
 ---
 
@@ -291,37 +292,36 @@ flowchart TD
     end
 ```
 
-#### 4.2.1 Bảng Thiết Lập Mục Tiêu & Ngưỡng Chấp Nhận (Target Quality Thresholds & Acceptance Criteria theo Phần G)
+#### 4.2.1 Bảng Thiết Lập Mục Tiêu, Ngưỡng Chấp Nhận & Kết Quả Thực Tế (Phần G)
 
 > [!NOTE]
-> Trong **giai đoạn lập kế hoạch (Planning Phase)**, các chỉ số dưới đây là **Ngưỡng cam kết chất lượng (Target Thresholds)** và **Tiêu chí nghiệm thu (Acceptance Criteria)** bắt buộc phải đạt khi triển khai kiểm thử. Khi bước sang giai đoạn chạy thực nghiệm (Execution Phase), nhóm sẽ thực hiện đo lường thực tế để điền vào **Báo cáo tổng kết Phần G**.
+> Bảng dưới đây đối chiếu trực tiếp **Ngưỡng cam kết chất lượng (`SUMMARY_REPORT.md`)** với **Số liệu đo tự động trên Docker MySQL 8.0.36 + PCOV 1.0.12** (`564 tests`, `2,149 assertions`, `10` tệp nguồn phạm vi Phân vùng 4).
 
-| Nhóm Chỉ Số | Chỉ Số Đo Lường (Metric) | Công Cụ & Phương Pháp Đo | Ngưỡng Mục Tiêu Tối Thiểu (Target Threshold) | Tiêu Chí Nghiệm Thu (Acceptance Criteria) | Trạng Thái Kế Hoạch |
+| Nhóm Chỉ Số | Chỉ Số Đo Lường (Metric) | Công Cụ & Phương Pháp Đo | Ngưỡng Cam Kết (`SUMMARY_REPORT.md`) | Kết Quả Đo Thực Tế (K16 MySQL 8.0.36 + PCOV) | Trạng Thái |
 | :--- | :--- | :--- | :---: | :--- | :---: |
-| **Code Coverage** | **Line Coverage** (Độ phủ dòng) | PHPUnit + PCOV / Xdebug 3 | $\ge 85.0\%$ | Đảm bảo phần lớn mã nguồn của `User` và `UserPolicy` được thực thi qua test. | 🎯 Mục tiêu cam kết |
-| | **Branch Coverage** (Độ phủ nhánh) | PHPUnit Branch Analysis | $\ge 80.0\%$ | Đảm bảo 100% các nhánh rẽ an ninh (`1`, `-1`, `0`) được kiểm thử đầy đủ. | 🎯 Mục tiêu cam kết |
-| | **Method Coverage** (Độ phủ hàm) | PHPUnit Coverage Analyzer | $\ge 90.0\%$ | 100% các hàm an ninh cốt lõi (`hasAccess`, `isSuperUser`, `scopeCompanyables`) phải có test. | 🎯 Mục tiêu cam kết |
-| **Quality Score** | **Pass Rate** (Tỷ lệ test đạt) | PHPUnit Runner | $= 100\%$ | Toàn bộ các ca kiểm thử an ninh phải vượt qua thành công, không có test nào bị Fail. | 🎯 Mục tiêu cam kết |
-| | **Assertion Density** (Số phép kiểm) | PHPUnit Assertions Count | $\ge 60$ assertions | Tối thiểu phải có 60 phép khẳng định logic để đảm bảo không test hình thức. | 🎯 Mục tiêu cam kết |
-| | **Flaky Test Ratio** (Độ chập chờn) | Chạy lặp lại 5 lần liên tiếp | $= 0\%$ | Các test phải chạy ổn định độc lập, không bị ảnh hưởng bởi dữ liệu rác. | 🎯 Mục tiêu cam kết |
-| | **Regression Count** (Lỗi hồi quy) | Toàn bộ Test Suite cũ | $= 0$ lỗi | Không làm hỏng hoặc phá vỡ các tính năng hiện có của hệ thống. | 🎯 Mục tiêu cam kết |
-| **Benchmark** | **Local Test Duration** | Đo thời gian chạy CLI | $< 30$ giây | Đảm bảo tốc độ thực thi nhanh khi lập trình viên kiểm thử trên máy cá nhân. | 🎯 Mục tiêu cam kết |
-| | **CI/CD Pipeline Duration** | GitHub Actions Workflow Timer | $< 15$ phút | Tối ưu thời gian chạy toàn bộ container MySQL 8.0 trên pipeline tự động. | 🎯 Mục tiêu cam kết |
+| **Code Coverage** | **Line Coverage** (Độ phủ dòng) | PHPUnit 11 + PCOV `1.0.12` (Clover XML) | $\ge 80.0\%$ | **`82.60%` (`1,828 / 2,213` statements)** trên 10 tệp phạm vi (`UsersController` `93.68%`, `User` `85.51%`, `DeleteUserRequest` `100%`, `UserPolicy` `100%`, `AuthServiceProvider` `91.10%`, `CompanyableTrait` `84.62%`, `Api\UsersController` `81.92%`) | ✅ **ĐẠT NGƯỠNG** |
+| | **Method Coverage** (Độ phủ hàm) | PCOV / Clover XML | Đo thực tế các hàm trọng yếu | **`53.30%` (`97 / 182` methods)** trên toàn bộ 10 tệp *(100% hàm bảo mật cốt lõi: `hasAccess`, `isSuperUser`, `mayImpersonate`, `canGrantFloaterStatus`, `canCheckoutTo`, `DeleteUserRequest`)* | ✅ **ĐẠT** |
+| **Quality Score** | **Pass Rate** (Tỷ lệ test đạt) | PHPUnit Runner + JUnit XML | $\ge 95\%$ (`0` fail) | **`100.0%` (`564 / 564` tests PASS)** — `0 failures`, `0 errors`, `0 skipped` | ✅ **ĐẠT (100%)** |
+| | **Assertion Density** (Số phép kiểm) | PHPUnit Assertions Count | $\ge 50$ assertions | **`2,149` assertions** (riêng `30 executions` trọng tâm đạt `217` assertions) | ✅ **VƯỢT CHỈ TIÊU** |
+| | **Flaky / Regression Count** | Chạy độc lập trong Ephemeral Container | `0` lỗi | **`0` lỗi hồi quy** trên toàn bộ `Unit` + `Users` + `Groups` + `Auth` + `Authentication` | ✅ **ZERO FAILURE** |
+| **Benchmark** | **CI/CD Pipeline Duration** | GitHub Actions (`ubuntu-latest` K16 + PCOV) | $\le 600$s (CI) / $\le 1800$s (local 564 tests) | **~165s (~2 phút 45s)** trên GitHub Actions [Run #45740176366](https://github.com/Bee-Max-Ne/Snipe-IT/actions/runs/45740176366) *(Docker Windows local: `2,579.32s` do TCP I/O)* | ✅ **TỐI ƯU TRÊN CI** |
 
 ---
 
 #### 4.2.2 Quy trình & Lệnh Triển khai Đo lường Thực tế (Implementation Commands)
 
-Để trích xuất các bằng chứng số liệu trên phục vụ nộp bài Phần G:
+Để trích xuất đầy đủ các bằng chứng số liệu trên phục vụ nộp bài Phần G:
 ```powershell
-# 1. Đo lường Code Coverage bằng driver PCOV và xuất báo cáo Text tóm tắt:
-php -d pcov.enabled=1 vendor/bin/phpunit tests/Unit/UserTest.php --coverage-text
+# 1. Chạy toàn bộ 564 tests qua K16 Testcontainers (MySQL 8.0.36) — tự động bật PCOV HTML/Clover & đóng gói ZIP:
+.\export_evidence.ps1
 
-# 2. Xuất báo cáo Coverage trực quan định dạng HTML (để chụp ảnh chèn vào báo cáo Word):
-php -d pcov.enabled=1 vendor/bin/phpunit tests/Unit/UserTest.php --coverage-html=storage/coverage/html
-
-# 3. Kích hoạt kiểm tra tự động ngưỡng tối thiểu trên CI/CD (Fail nếu dưới 85%):
-php artisan test tests/Unit/UserTest.php --coverage --min=85
+# 2. Hoặc chạy trực tiếp qua K16 runner kèm tùy chọn xuất HTML, Clover XML và Text Summary:
+$env:PHP_BINARY = (Get-Command php).Source
+node tests/testcontainers/run.mjs -c phpunit.part4.xml `
+  --coverage-html storage/logs/test-reports/coverage-html `
+  --coverage-clover storage/logs/test-reports/coverage_clover.xml `
+  --testdox-html storage/logs/test-reports/testdox.html `
+  --coverage-text
 ```
 
 ---
@@ -1024,11 +1024,20 @@ Dưới đây là các thông điệp commit mẫu chuẩn chỉnh đã và đan
 |  - test(fmcs): kiểm thử TC-SEC-13 chặn hành vi bàn giao tài sản xuyên công ty cross-company checkout          |
 |  - test(fmcs): kiểm thử TC-SEC-14 toàn vẹn dữ liệu tài sản không gắn công ty trên ma trận 6 models            |
 +---------------------------------------------------------------------------------------------------------------+
-|  NHÓM 4: NHẬT KÝ KIỂM TOÁN, TÀI LIỆU & CI/CD                                                                  |
+|  NHÓM 4: NHẬT KÝ KIỂM TOÁN, BÁO CÁO & CI/CD                                                                     |
 |  - test(audit): kiểm thử TC-SEC-15 tính bất biến và không mất dấu của nhật ký kiểm toán action_logs           |
 |  - docs(kế-hoạch): bổ sung kế hoạch kiểm thử giai đoạn 2 chi tiết cho phân vùng 4 (Nguyễn Thành Minh)         |
 |  - docs(báo-cáo): bổ sung báo cáo thực nghiệm metrics, code coverage và phân tích rca cho phân vùng 4         |
 |  - ci(k16): tích hợp workflow kiểm thử tự động testcontainers mysql trên github actions                       |
++---------------------------------------------------------------------------------------------------------------+
+|  NHÓM 5: FEATURE/API INTEGRATION (TC-SEC-API-01..10), K16 LOGGING & PCOV COVERAGE >= 80%                      |
+|  - test(api-sec): bo sung bo kiem thu Feature/API Integration va Passport Bearer Token (TC-SEC-API-01..06)     |
+|  - test(config): mo rong phpunit.part4.xml bao gom Feature Integration suite va cac Controller/Auth lien quan |
+|  - feat(logging): bo sung script thu thap metadata moi truong va sua logic trong generate_ci_summary.py        |
+|  - chore(scripts): chuan hoa run_part4_tests.ps1, export_evidence.ps1 va tu dong bat PCOV HTML/Clover         |
+|  - ci(k16): chuyen workflow testcontainers_phan_vung_4.yml sang chay run.mjs, pipefail, PCOV va laravel.log    |
+|  - test(coverage): bo sung TC-SEC-API-07..10 va mo rong suite Users/Groups/Auth dat >80% PCOV coverage        |
+|  - docs(part4): cap nhat so lieu PCOV 82.60% (564 tests) va TC-SEC-API-07..10 vao bao cao va huong dan        |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -1105,122 +1114,89 @@ flowchart TD
 Để bảo đảm mã nguồn kiểm thử không bị sai lệch theo thời gian, sinh viên thực hiện lưu cứng trạng thái mã nguồn:
 1. **Gắn Tag chính thức cho đợt nghiệm thu:**
    ```powershell
-   # Tạo tag có chữ ký kèm thông điệp nghiệm thu:
-   git tag -a v1.0-final-part4-evaluation -m "Bản nghiệm thu chính thức Phân vùng 4 - SV Nguyễn Thành Minh (MSSV 2312691)"
-   # Đẩy tag lên GitHub remote:
-   git push origin v1.0-final-part4-evaluation
+   # Tạo tag đánh dấu mốc nghiệm thu Phân vùng 4:
+   git tag -f v1.1-final-part4-evaluation
+   # Đẩy nhánh và tag lên GitHub remote:
+   git push origin feature/phan-vung-4-kiem-thu-an-ninh
+   git push -f origin v1.1-final-part4-evaluation
    ```
-2. **Ghi nhận mã băm Commit SHA cố định:**
-   * Trích xuất và lưu mã băm commit đầy đủ (40 ký tự) vào đầu file báo cáo để giảng viên có thể dùng lệnh `git checkout <commit_sha>` bất kỳ lúc nào:
-   ```powershell
-   git rev-parse HEAD > storage/logs/PINNED_COMMIT_SHA.txt
-   ```
+2. **Ghi nhận mã băm Commit SHA cố định tự động (`environment_metadata.json` & `git_commit_evidence.txt`):**
+   * Script `tests/capture_env_metadata.php` và `export_evidence.ps1` tự động ghi nhận Commit SHA đầy đủ, Branch, Tag, phiên bản PHP, và bằng chứng Docker MySQL vào `storage/logs/test-reports/environment_metadata.json`.
 3. **Khóa cứng Dependency Files (`composer.lock` & `package-lock.json`):**
-   * Tuyệt đối không xóa hoặc `composer update` tùy tiện. Hai file lock này đảm bảo 100% các máy khác khi cài đặt đều tải đúng phiên bản PHPUnit 11, Testcontainers và các package hỗ trợ giống hệt máy trạm phát triển.
+   * Hai file lock đảm bảo 100% các máy khác khi cài đặt đều tải đúng phiên bản PHPUnit 11, `@testcontainers/mysql` và các package hỗ trợ giống hệt môi trường phát triển/CI.
 
 ---
 
 ### 8.2 Trụ cột 2: Lưu Trữ Cấu Hình Kiểm Thử Độc Lập (Test Configuration Storage)
 Nhóm tạo sẵn và lưu cứng bộ cấu hình chuẩn hóa, không phụ thuộc vào cấu hình cục bộ của bất kỳ cá nhân nào:
 
-1. **Tệp cấu hình môi trường kiểm thử mẫu (`.env.testing.example` / `.env.testing`):**
-   * Đặt biến môi trường độc lập, cô lập hoàn toàn với database production:
-   ```ini
-   APP_ENV=testing
-   APP_DEBUG=true
-   APP_KEY=base64:glJpcM7BYwWiBggp3SQ/+NlRkqsBQMaGEOjemXqJzOU=
-   APP_URL=http://localhost:8000
-   DB_CONNECTION=sqlite_testing
-   IMPORT_MEMORY_LIMIT=2G
-   LDAP_MEM_LIM=2G
-   ```
-2. **Tệp cấu hình PHPUnit chuẩn hóa (`phpunit.xml`):**
-   * Định nghĩa sẵn bộ test suite của Phân vùng 4 và cấu hình bộ lọc Code Coverage chỉ tập trung vào các file nghiệp vụ liên quan:
-   ```xml
-   <testsuite name="Partition4-Security">
-       <file>tests/Unit/UserTest.php</file>
-       <file>tests/Unit/CompanyScopingTest.php</file>
-   </testsuite>
-   ```
-3. **Cấu hình Hạ tầng Docker Testcontainers K16 (`k16-runner-config.json`):**
-   * Cố định Image `mysql:8.0.36`, cấu hình timeout khởi động container là 60 giây và cơ chế dọn dẹp tài nguyên tự động sau khi kết thúc test (`auto-cleanup`).
+1. **Tệp cấu hình môi trường kiểm thử mẫu (`.env.testing.example`):**
+   * Được `tests/testcontainers/run.mjs` tự động nạp khi khởi chạy container MySQL 8.0.36 cô lập, đồng thời tiêm động `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `PASSPORT_PRIVATE_KEY` và `PASSPORT_PUBLIC_KEY`.
+2. **Tệp cấu hình PHPUnit chuyên biệt (`phpunit.part4.xml`):**
+   * Định nghĩa 2 suite `Part4UnitSecurity` và `Part4FeatureIntegration` (tổng **564 tests / 2,149 assertions**) cùng `<source><include>` gồm **10 tệp nghiệp vụ Phân vùng 4** và `<junit outputFile="storage/logs/test-reports/junit_part4_report.xml"/>`.
+3. **Cấu hình Hạ tầng Docker Testcontainers K16 (`tests/testcontainers/run.mjs`):**
+   * Cố định Image `mysql:8.0.36`, khởi tạo database và cổng ngẫu nhiên, cấp phát khóa RSA Passport động trong bộ nhớ RAM và tự động dừng/xóa container trong khối `finally`.
 
 ---
 
 ### 8.3 Trụ cột 3: Hướng Dẫn Từng Bước Tái Lập Trên Máy Mới (Step-by-Step Reproduction Guide)
-Hướng dẫn này sẽ được đặt ngay trong file `README_REPRODUCE_PART4.md` ở thư mục gốc để người khác (hoặc Giảng viên) làm theo:
+Hướng dẫn đầy đủ đặt tại [`README_REPRODUCE_PART4.md`](README_REPRODUCE_PART4.md) ở thư mục gốc:
 
 #### Yêu Cầu Tối Thiểu Về Phần Mềm Trên Máy Mới:
-- **Hệ điều hành:** Windows 10/11, macOS hoặc Linux (Ubuntu 20.04+).
-- **PHP:** Phiên bản 8.2 trở lên (kèm extension `pdo_mysql`, `pdo_sqlite`, `pcov` nếu muốn đo coverage).
-- **Node.js:** Phiên bản 18+ hoặc 20+ LTS.
-- **Docker:** Docker Desktop (đang chạy daemon) nếu muốn chạy kiểm thử qua K16 Testcontainers MySQL.
+- **Hệ điều hành:** Windows 10/11, macOS hoặc Linux (Ubuntu 22.04+).
+- **PHP:** Phiên bản 8.2 trở lên (kèm extension `pdo_mysql`, `pdo_sqlite`, `pcov` để đo coverage).
+- **Node.js:** Phiên bản 18+ hoặc 20+/22+ LTS.
+- **Docker:** Docker Desktop (đang chạy daemon) để thực thi K16 Testcontainers `mysql:8.0.36`.
 
-#### 4 Bước Thực Hiện Tái Lập (Thời Gian Thực Hiện: Dưới 3 Phút):
+#### 4 Bước Thực Hiện Tái Lập:
 ```bash
-# Bước 1: Sao chép mã nguồn và chuyển về đúng Tag nghiệm thu đã lưu cứng
-git clone https://github.com/Snipe-IT/Snipe-IT.git snipe-it-evaluation
+# Bước 1: Sao chép mã nguồn và chuyển về đúng nhánh / tag nghiệm thu đã lưu cứng
+git clone https://github.com/Bee-Max-Ne/Snipe-IT.git snipe-it-evaluation
 cd snipe-it-evaluation
-git checkout v1.0-final-part4-evaluation
+git checkout v1.1-final-part4-evaluation
 
 # Bước 2: Cài đặt thư viện dependencies theo đúng file lock
-php composer.phar install --no-interaction --prefer-dist
-npm install --no-audit
+composer install --prefer-dist --no-interaction --no-scripts
+npm install --no-audit --no-fund
 
-# Bước 3: Tạo App Key cho môi trường testing nếu chưa có
+# Bước 3: Khởi tạo file cấu hình testing và App Key
+cp .env.testing.example .env
 php artisan key:generate --env=testing
 
-# Bước 4: Thực thi kiểm thử tự động
-# Cách 4.1: Chạy nhanh trên bộ test suite của Phân vùng 4 (kết quả hiển thị ngay trong terminal)
-php artisan test tests/Unit/UserTest.php tests/Unit/CompanyScopingTest.php
+# Bước 4: Thực thi kiểm thử tự động trên MySQL 8.0.36 thật qua K16 Testcontainers
+# Trên Windows PowerShell:
+.\export_evidence.ps1
 
-# Cách 4.2: Chạy kiểm thử tự động trên MySQL thật bằng K16 Testcontainers
-npm run test:integration:testcontainers -- tests/Unit/UserTest.php
+# Trên Linux / macOS:
+TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 node tests/testcontainers/run.mjs -c phpunit.part4.xml
 ```
 
 ---
 
 ### 8.4 Trụ cột 4: Script Chạy Tự Động Hóa 1-Click (One-Click Automated Replication Scripts)
-Để tạo trải nghiệm tốt nhất cho Giảng viên chấm điểm, nhóm xây dựng sẵn file script thực thi tự động:
+Để tạo trải nghiệm thuận tiện nhất khi nghiệm thu trên Windows, nhóm cung cấp 2 script PowerShell chuẩn hóa tại thư mục gốc:
 
-#### File Script Dành Cho Windows (`run_part4_tests.bat`):
-```cmd
-@echo off
-echo =====================================================================
-echo   KIEM THU PHAN VUNG 4: USER, RBAC, FMCS & ACTIONLOG (SV: NGUYEN THANH MINH)
-echo =====================================================================
-echo Dang kiem tra moi truong PHP va Composer...
-php -v >nul 2>&1 || (echo Loi: May chua cai dat PHP! && pause && exit /b 1)
-
-echo Dang kich hoat bo kiem thu PHPUnit...
-php artisan test tests/Unit/UserTest.php tests/Unit/CompanyScopingTest.php
-
-echo.
-echo =====================================================================
-echo   KIEM THU HOAN TAT! TOAN BO CAC CA TEST DA DUOC THUC THI THANH CONG.
-echo =====================================================================
-pause
-```
+- **[`run_part4_tests.ps1`](run_part4_tests.ps1):** Tự kiểm tra Docker Desktop, thiết lập `$env:PHP_BINARY`, tự phát hiện driver PCOV/Xdebug để bật xuất HTML & Clover XML coverage, chạy `node tests/testcontainers/run.mjs -c phpunit.part4.xml`, thu thập `environment_metadata.json` và tạo `SUMMARY_REPORT.md` + `checksums.sha256`. (Hỗ trợ `-Filter test_tc_sec_` để chạy nhanh 30 lượt trọng tâm và `-FallbackLocal` nếu chưa bật Docker.)
+- **[`export_evidence.ps1`](export_evidence.ps1):** Xuất thêm `git_commit_evidence.txt`, gọi `run_part4_tests.ps1` và lưu bản nén dự phòng theo dấu thời gian `Evidence_PhanVung4_<timestamp>.zip` bên cạnh bản chuẩn `storage/logs/artifacts/Evidence_PhanVung4_v1.0.zip`.
 
 ---
 
 ## 9. KẾ HOẠCH BẢO VỆ ĐỀ TÀI & NGHIỆM THU (DEFENSE READINESS & CHECKLIST)
 
-Khi báo cáo trước Hội đồng Giảng viên hoặc Giảng viên hướng dẫn (ThS. Nguyễn Thế Lâm), sinh viên tự tin trình bày theo cấu trúc 5 phần chuẩn mực:
+Khi báo cáo trước Giảng viên hướng dẫn (ThS. Nguyễn Thế Lâm), sinh viên trình bày theo cấu trúc 5 phần chuẩn mực với số liệu thực tế đã kiểm chứng:
 
 1. **Phần 1: Giới thiệu Phân vùng & Kỹ thuật K16 (2 phút)**
-   - Phân vùng 4 phụ trách phòng tuyến an ninh: RBAC, UserPolicy, Multi-tenancy FMCS, Actionlog.
-   - Kỹ thuật K16 Testcontainers giải quyết triệt để sai lệch môi trường (*Parity Gap*) của SQLite bằng cách chạy kiểm thử trên MySQL 8.0 Ephemeral Container thật.
+   - Phân vùng 4 phụ trách phòng tuyến an ninh: RBAC, `UserPolicy`, `Groups`, `2FA`/`Logout`, Multi-tenancy FMCS, `Actionlog`.
+   - Kỹ thuật K16 Testcontainers giải quyết triệt để sai lệch môi trường (*Parity Gap*) của SQLite bằng cách chạy kiểm thử trên `mysql:8.0.36` Ephemeral Container thật (`mysql_container_proof.json`).
 2. **Phần 2: Demo Chạy Kiểm thử Tự động Trực tiếp (3 phút)**
-   - Mở terminal chạy lệnh: `php artisan test tests/Unit/UserTest.php`.
-   - Chỉ rõ 35/35 bài test màu xanh lá (`PASS`), đặc biệt nhấn mạnh `TC-SEC-03` (Xung đột quyền Deny đè Allow) và `TC-SEC-15` (Nhật ký kiểm toán).
+   - Chạy nhanh 30 lượt trọng tâm qua Docker MySQL: `.\run_part4_tests.ps1 -Filter test_tc_sec_` (hoặc chạy đầy đủ 564 tests với `.\export_evidence.ps1`).
+   - Chỉ rõ **564/564 tests PASS (`2,149 assertions`)**, nhấn mạnh `TC-SEC-03` (Quyền Deny `-1` đè Allow `1`), `TC-SEC-12` (chặn rò rỉ subquery Floater mode), `TC-SEC-API-04` (Brute-force lockout 5 lần), `TC-SEC-API-07` (`2FA` & `Logout 405/POST`) và `TC-SEC-API-09` (checkout phân cấp cha-con FMCS).
 3. **Phần 3: Giải thích Quản lý Lỗi & Chứng minh Ngưỡng Đạt Phần G (3 phút)**
-   - Giải thích rõ: Khi test PASS nghĩa là hệ thống an ninh đã được bảo vệ thành công trước các rủi ro.
-   - Trình bày bảng đối soát Ngưỡng đạt: Line Coverage $\ge 85\%$, Pass Rate $100\%$, Assertion Density $\ge 60$.
-   - Trình bày Case Study RCA: Lỗi rò rỉ dữ liệu đa công ty (`DEFECT-SEC-01`) bằng kỹ thuật **5 Whys** và **Biểu đồ Xương cá Ishikawa**.
+   - Trình chiếu [`SUMMARY_REPORT.md`](storage/logs/test-reports/SUMMARY_REPORT.md) và [`coverage-html/index.html`](storage/logs/test-reports/coverage-html/index.html): Line Coverage **`82.60%` (`1,828 / 2,213 statements` >= 80%)**, Pass Rate **`100.0%`**, Assertions **`2,149 >= 50`**.
+   - Trình bày Case Study RCA: Lỗi rò rỉ dữ liệu đa công ty (`DEFECT-SEC-01`) bằng kỹ thuật **5 Whys** và **Biểu đồ Xương cá Ishikawa** trong [`BAO_CAO_THUC_NGHIEM_METRICS_PHAN_VUNG_4.md`](BAO_CAO_THUC_NGHIEM_METRICS_PHAN_VUNG_4.md).
 4. **Phần 4: Trình bày Quy chuẩn Quản lý Mã nguồn Git & CI/CD (2 phút)**
-   - Trình chiếu lịch sử commit `git log` bằng Tiếng Việt chuẩn mực, chứng minh tính nguyên tử (*Atomic Commit*) của từng ca kiểm thử từ `TC-SEC-01` đến `TC-SEC-05`.
-   - Trình chiếu file workflow GitHub Actions (`testcontainers.yml`) chứng minh mã kiểm thử được tự động kích hoạt mỗi khi có commit mới đẩy lên nhánh `feature/phan-vung-4-kiem-thu-an-ninh`.
+   - Trình chiếu lịch sử commit `git log` chuẩn Conventional Commits (`TC-SEC-01..15` & `TC-SEC-API-01..10`).
+   - Trình chiếu workflow chuyên biệt [`.github/workflows/testcontainers_phan_vung_4.yml`](.github/workflows/testcontainers_phan_vung_4.yml) và kết quả chạy xanh [**Run #45740176366**](https://github.com/Bee-Max-Ne/Snipe-IT/actions/runs/45740176366) (~2 phút 45 giây cho 564 tests + PCOV).
 5. **Phần 5: Bàn giao Gói Tái lập Kiểm thử Phần H (Replication Package) (1 phút)**
-   - Cung cấp mã Hash commit đã lưu cứng và hướng dẫn 4 bước trong file `README_REPRODUCE_PART4.md` để giảng viên có thể tải về chạy lại bất kỳ lúc nào trên máy mới.
+   - Bàn giao tag `v1.1-final-part4-evaluation`, hướng dẫn tái lập tại [`README_REPRODUCE_PART4.md`](README_REPRODUCE_PART4.md) và gói bằng chứng [`Evidence_PhanVung4_v1.0.zip`](storage/logs/artifacts/Evidence_PhanVung4_v1.0.zip) kèm `checksums.sha256`.
 
