@@ -397,6 +397,162 @@ class CompanyScopingTest extends TestCase
         $this->assertCanSee($floater);
     }
 
+    /**
+     * Mã kiểm thử: TC-SEC-11
+     * Tên kịch bản: Cô lập dữ liệu người dùng đa công ty ở chế độ nghiêm ngặt (Strict Mode Scoping)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Multi-tenant Data Isolation / SQL Scoping Verification
+     * Mục tiêu an ninh: Chứng minh người dùng Công ty A truy vấn danh sách người dùng chỉ nhận
+     * được nhân sự thuộc Công ty A, hoàn toàn bị cô lập khỏi Công ty B (không rò rỉ dữ liệu).
+     */
+    public function test_tc_sec_11_company_scoped_user_cannot_see_other_companies_users_in_strict_mode(): void
+    {
+        // 1. Arrange: Khởi tạo 2 công ty và 2 người dùng thuộc 2 công ty khác nhau
+        [$companyA, $companyB] = Company::factory()->count(2)->create();
+
+        $userA = $companyA->users()->save(User::factory()->make());
+        $userB = $companyB->users()->save(User::factory()->make());
+
+        // Bật chế độ đa công ty nghiêm ngặt (FMCS Strict Mode: floater off)
+        $this->settings->enableMultipleFullCompanySupport();
+
+        // 2. Act: Thực hiện đăng nhập dưới danh tính User A và làm mới cache phân quyền công ty
+        $this->actingAs($userA);
+        Company::flushCompanyIdsCache();
+
+        // 3. Assert: Khẳng định User A chỉ nhìn thấy chính mình / nhân viên Cty A, tuyệt đối không thấy User B
+        $this->assertCanSee($userA);
+        $this->assertCannotSee($userB);
+    }
+
+    /**
+     * Mã kiểm thử: TC-SEC-12
+     * Tên kịch bản: Ngăn chặn rò rỉ dữ liệu người dùng qua subquery khi bật floater mode (DEFECT-SEC-01)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Adversarial Scoping Testing / Regression Defense (Khóa chặt ticket 56305 / DEFECT-SEC-01)
+     * Mục tiêu an ninh: Khi bật null_company_is_floater, đảm bảo subquery kiểm tra pivot company_user
+     * không bị áp đặt CompanyableScope đệ quy khiến người dùng thuộc Công ty B bị rò rỉ sang Công ty A.
+     */
+    public function test_tc_sec_12_company_scoped_user_cannot_see_other_companies_users_in_floater_mode(): void
+    {
+        // 1. Arrange: Khởi tạo 2 công ty riêng biệt, nhân sự Cty A, nhân sự Cty B và nhân sự tự do (floater)
+        [$companyA, $companyB] = Company::factory()->count(2)->create();
+
+        $callerA = $companyA->users()->save(User::factory()->make());
+        $peerInA = $companyA->users()->save(User::factory()->make());
+        $userInB = $companyB->users()->save(User::factory()->make());
+        $floaterUser = User::factory()->withoutCompany()->create();
+
+        // Kích hoạt chế độ FMCS kèm Floater Mode
+        $this->settings->enableFloaterMode();
+
+        // 2. Act: Đăng nhập dưới quyền User của Công ty A và xóa cache công ty
+        $this->actingAs($callerA);
+        Company::flushCompanyIdsCache();
+
+        // 3. Assert:
+        // A. Nhìn thấy đồng nghiệp cùng Công ty A
+        $this->assertCanSee($peerInA);
+
+        // B. Nhìn thấy nhân sự Floater tự do (không thuộc công ty nào)
+        $this->assertCanSee($floaterUser);
+
+        // C. Tuyệt đối KHÔNG nhìn thấy nhân sự thuộc Công ty B (ngăn rò rỉ chéo tenant)
+        $this->assertCannotSee($userInB);
+    }
+
+    /**
+     * Mã kiểm thử: TC-SEC-13
+     * Tên kịch bản: Chặn hành vi bàn giao tài sản xuyên công ty (Cross-Company Checkout Prevention)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: Business Rule & Multi-tenant Integrity Verification
+     * Mục tiêu an ninh: Đảm bảo tài sản thuộc quyền sở hữu của Công ty A tuyệt đối không thể
+     * bàn giao (checkout) cho nhân viên thuộc Công ty B, bảo toàn tài sản doanh nghiệp.
+     */
+    public function test_tc_sec_13_cross_company_asset_checkout_strictly_prevented(): void
+    {
+        // 1. Arrange: Khởi tạo 2 công ty, tài sản thuộc Cty A, nhân sự Cty A, Cty B và nhân sự Floater
+        [$companyA, $companyB] = Company::factory()->count(2)->create();
+
+        $assetA = Asset::factory()->for($companyA)->create();
+        $userA = $companyA->users()->save(User::factory()->make());
+        $userB = $companyB->users()->save(User::factory()->make());
+        $floaterUser = User::factory()->withoutCompany()->create();
+
+        // 2. Act & Assert ở chế độ nghiêm ngặt (Strict Mode):
+        $this->settings->enableMultipleFullCompanySupport();
+
+        // A. Chặn checkout tài sản Công ty A cho nhân sự Công ty B
+        $this->assertFalse(
+            $assetA->canCheckoutTo($userB),
+            'LỖI AN NINH: Cho phép bàn giao tài sản Công ty A cho nhân sự Công ty B!'
+        );
+
+        // B. Cho phép checkout tài sản Công ty A cho nhân sự cùng thuộc Công ty A
+        $this->assertTrue(
+            $assetA->canCheckoutTo($userA),
+            'LỖI: Bị chặn bàn giao tài sản nội bộ trong cùng Công ty A!'
+        );
+
+        // C. Ở chế độ Strict Mode, nhân sự tự do (floater) không được nhận tài sản có công ty
+        $this->assertFalse(
+            $assetA->canCheckoutTo($floaterUser),
+            'LỖI AN NINH: Chế độ Strict cho phép bàn giao tài sản cho nhân sự Floater!'
+        );
+
+        // 3. Act & Assert ở chế độ Floater Mode:
+        $this->settings->enableFloaterMode();
+
+        // D. Kể cả khi bật Floater Mode, tuyệt đối VẪN PHẢI CHẶN checkout chéo cho Công ty B
+        $this->assertFalse(
+            $assetA->canCheckoutTo($userB),
+            'LỖI AN NINH: Floater Mode để lọt lỗi checkout chéo công ty cho Công ty B!'
+        );
+
+        // E. Ở Floater Mode, nhân sự tự do (floater) được phép nhận tài sản
+        $this->assertTrue(
+            $assetA->canCheckoutTo($floaterUser),
+            'LỖI: Nhân sự Floater bị chặn nhận tài sản trong chế độ Floater Mode!'
+        );
+    }
+
+    /**
+     * Mã kiểm thử: TC-SEC-14
+     * Tên kịch bản: Toàn vẹn dữ liệu tài sản không gắn công ty trên ma trận 6 models (Strict vs Floater)
+     * Phân vùng: Phân vùng 4 (Nguyễn Thành Minh - 2312691)
+     * Kỹ thuật: DataProvider Matrix / Multi-tenant Scoping Integrity
+     * Mục tiêu an ninh: Khẳng định hành vi scoping tài sản unassigned (null company) trên 6 models:
+     * Accessories, Assets, Components, Consumables, Departments, Licenses tuân thủ đúng ma trận an ninh:
+     * Ẩn hoàn toàn trong Strict Mode và chỉ hiển thị khi bật Floater Mode.
+     */
+    #[DataProvider('models')]
+    public function test_tc_sec_14_null_company_scoping_matrix_across_all_models($model): void
+    {
+        // 1. Arrange: Khởi tạo Công ty, Item không gán công ty (null) và Item gán cho Công ty
+        $company = Company::factory()->create();
+        $nullCompanyItem = $model::factory()->create(['company_id' => null]);
+        $companyItem = $model::factory()->for($company)->create();
+        $companyUser = $company->users()->save(User::factory()->make());
+
+        // 2. Act & Assert ở chế độ nghiêm ngặt (Strict Mode):
+        $this->settings->enableMultipleFullCompanySupport();
+        $this->actingAs($companyUser);
+        Company::flushCompanyIdsCache();
+
+        // Trong Strict Mode, nhân viên công ty KHÔNG ĐƯỢC THẤY item không gán công ty
+        $this->assertCannotSee($nullCompanyItem);
+        $this->assertCanSee($companyItem);
+
+        // 3. Act & Assert ở chế độ Floater Mode:
+        $this->settings->enableFloaterMode();
+        $this->actingAs($companyUser);
+        Company::flushCompanyIdsCache();
+
+        // Trong Floater Mode, nhân viên công ty ĐƯỢC THẤY item không gán công ty
+        $this->assertCanSee($nullCompanyItem);
+        $this->assertCanSee($companyItem);
+    }
+
     private function assertCanSee(Model $model)
     {
         $this->assertTrue(

@@ -1,0 +1,183 @@
+name: Testcontainers MySQL Part 4 Security Tests (Nguyen Thanh Minh - 2312691)
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+      - 'feature/**'
+    paths:
+      - 'app/Models/User.php'
+      - 'app/Models/Actionlog.php'
+      - 'app/Policies/UserPolicy.php'
+      - 'app/Models/Traits/CompanyableTrait.php'
+      - 'app/Models/CompanyableScope.php'
+      - 'app/Http/Requests/DeleteUserRequest.php'
+      - 'app/Http/Controllers/Api/UsersController.php'
+      - 'app/Http/Controllers/Users/UsersController.php'
+      - 'app/Http/Controllers/Auth/LoginController.php'
+      - 'app/Providers/AuthServiceProvider.php'
+      - 'tests/Unit/UserTest.php'
+      - 'tests/Unit/CompanyScopingTest.php'
+      - 'tests/Feature/Users/**'
+      - 'tests/Feature/Groups/**'
+      - 'tests/Feature/Auth/**'
+      - 'tests/Feature/Authentication/**'
+      - 'tests/testcontainers/run.mjs'
+      - 'tests/capture_env_metadata.php'
+      - 'tests/generate_ci_summary.py'
+      - 'phpunit.part4.xml'
+      - '.github/workflows/testcontainers_phan_vung_4.yml'
+  pull_request:
+    paths:
+      - 'app/Models/User.php'
+      - 'app/Models/Actionlog.php'
+      - 'app/Policies/UserPolicy.php'
+      - 'app/Models/Traits/CompanyableTrait.php'
+      - 'app/Models/CompanyableScope.php'
+      - 'app/Http/Requests/DeleteUserRequest.php'
+      - 'app/Http/Controllers/Api/UsersController.php'
+      - 'app/Http/Controllers/Users/UsersController.php'
+      - 'app/Http/Controllers/Auth/LoginController.php'
+      - 'app/Providers/AuthServiceProvider.php'
+      - 'tests/Unit/UserTest.php'
+      - 'tests/Unit/CompanyScopingTest.php'
+      - 'tests/Feature/Users/**'
+      - 'tests/Feature/Groups/**'
+      - 'tests/Feature/Auth/**'
+      - 'tests/Feature/Authentication/**'
+      - 'tests/testcontainers/run.mjs'
+      - 'tests/capture_env_metadata.php'
+      - 'tests/generate_ci_summary.py'
+      - 'phpunit.part4.xml'
+      - '.github/workflows/testcontainers_phan_vung_4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  part4-security-tests:
+    name: Part 4 Security & Integration Tests (K16 Testcontainers MySQL 8.0.36)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup PHP 8.2 with PCOV Code Coverage Engine
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip, pcov
+          coverage: pcov
+          ini-values: memory_limit=1G
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: "Fail-Fast Gate: Static Syntax & Lint Check"
+        run: |
+          php -l app/Models/User.php
+          php -l app/Models/Actionlog.php
+          php -l app/Policies/UserPolicy.php
+          php -l app/Models/Traits/CompanyableTrait.php
+          php -l app/Models/CompanyableScope.php
+          php -l app/Http/Requests/DeleteUserRequest.php
+          php -l app/Http/Controllers/Api/UsersController.php
+          php -l app/Http/Controllers/Users/UsersController.php
+          php -l app/Http/Controllers/Auth/LoginController.php
+          php -l app/Providers/AuthServiceProvider.php
+          php -l tests/Unit/UserTest.php
+          php -l tests/Unit/CompanyScopingTest.php
+          php -l tests/Feature/Users/SecurityPart4ApiIntegrationTest.php
+          php -l tests/Feature/Users/ImpersonateUserTest.php
+          php -l tests/Feature/Authentication/LoginTest.php
+          php -l tests/capture_env_metadata.php
+          python3 -m py_compile tests/generate_ci_summary.py
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Cache Node.js Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
+      - name: Prepare Laravel Testing Environment (.env)
+        run: |
+          cp -v .env.testing.example .env
+          cp -v .env.testing.example .env.testing
+
+      - name: Install Composer Dependencies (Optimized)
+        run: composer install --no-ansi --no-interaction --no-progress --prefer-dist --no-scripts
+
+      - name: Setup Laravel Keys & Storage Permissions
+        run: |
+          php artisan key:generate
+          php artisan passport:keys
+          chmod -R 777 storage bootstrap/cache
+
+      - name: Install NPM Dependencies (@testcontainers/mysql)
+        run: npm install --no-audit --no-fund
+
+      - name: Run Part 4 Unit & Feature Tests via K16 Testcontainers (MySQL 8.0.36)
+        env:
+          TESTCONTAINERS_HOST_OVERRIDE: 127.0.0.1
+        run: |
+          mkdir -p storage/logs/test-reports storage/logs/artifacts
+          git log --oneline -n 25 > storage/logs/test-reports/git_commit_evidence.txt
+          set -o pipefail
+          node tests/testcontainers/run.mjs \
+            -c phpunit.part4.xml \
+            --coverage-html storage/logs/test-reports/coverage-html \
+            --coverage-clover storage/logs/test-reports/coverage_clover.xml \
+            --testdox-html storage/logs/test-reports/testdox.html \
+            --coverage-text | tee storage/logs/test-reports/phpunit_part4_execution.log
+
+      - name: Emit Failure Diagnostics Annotation
+        if: failure()
+        run: |
+          if [ -f storage/logs/test-reports/phpunit_part4_execution.log ]; then
+            ERR_MSG=$(grep -E -A 6 "1\)|There was|There were|ERRORS!|FAILURES!" storage/logs/test-reports/phpunit_part4_execution.log | tr '\n' ' ' | cut -c 1-1000)
+            echo "::error::${ERR_MSG}"
+          fi
+
+      - name: Capture Environment & Git Metadata
+        if: always()
+        run: |
+          php tests/capture_env_metadata.php storage/logs/test-reports/environment_metadata.json
+
+      - name: Publish Dynamic Quality, Coverage & Performance Dashboard to Summary
+        if: always()
+        run: |
+          python3 tests/generate_ci_summary.py storage/logs/test-reports/phpunit_part4_execution.log "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Test Execution Evidence, Coverage & Laravel Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: part4-security-testcontainers-evidence-${{ github.run_attempt }}
+          path: |
+            storage/logs/test-reports/**
+            storage/logs/artifacts/**
+            storage/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 14
