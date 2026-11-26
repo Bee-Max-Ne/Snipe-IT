@@ -56,9 +56,9 @@ Mô hình kiểm thử của cả 4 thành viên đều xoay quanh hạt nhân k
 graph TD
     K16Core["HẠT NHÂN K16: TESTCONTAINERS / EPHEMERAL INTEGRATION<br/>(Docker MySQL 8.0.36 Ephemeral Container Engine)"]
 
-    K16Core --> M1["1. Phạm Nguyễn Ngọc Phước (2312718)<br/>Lead QA / API Testing Lead<br/>Phân vùng 1: Checkout / Checkin & Pessimistic Lock<br/>Kiểm chứng lockForUpdate() trên MySQL Ephemeral"]
+    K16Core --> M1["1. Phạm Nguyễn Ngọc Phước (2312718)<br/>Lead QA / API Testing Lead<br/>Phân vùng 1: Checkout / Checkin & Pessimistic Lock<br/>Kiểm thử hợp đồng API trên MySQL Ephemeral (chưa có test đồng thời)"]
     
-    K16Core --> M2["2. Nguyễn Văn Quốc (2312729)<br/>Senior QA Engineer<br/>Phân vùng 2: Hardware, Unique Index & Khấu hao<br/>Kiểm chứng Unique Tag Constraint & Math trên InnoDB"]
+    K16Core --> M2["2. Nguyễn Văn Quốc (2312729)<br/>Senior QA Engineer<br/>Phân vùng 2: Hardware, Asset Tag & Khấu hao<br/>Kiểm chứng tính duy nhất asset_tag (tầng model) & công thức khấu hao"]
     
     K16Core --> M3["3. Nguyễn Đình Thạch (2314506)<br/>Team Leader & Infrastructure Lead<br/>Phân vùng 3: Licenses, Auto-adjust & K16 Architect<br/>Kiểm soát Vòng đời Container run.mjs & Seat Pools"]
     
@@ -69,9 +69,9 @@ graph TD
 
 | STT | Họ và Tên | Mã Sinh Viên | Vai trò Dự án | Phân vùng Trọng tâm | Ứng dụng Kỹ thuật K16 Testcontainers làm Gốc | Bộ Test Suite Phụ trách Chính |
 | :---: | :--- | :---: | :--- | :--- | :--- | :--- |
-| **1** | **Phạm Nguyễn Ngọc Phước** | **2312718** | **Lead QA (Senior Testing Engineer)** | **Phân vùng 1:** Module API Checkout, Checkin & Quy trình Cấp phát / Thu hồi | Sử dụng container MySQL K16 để kiểm chứng cơ chế **Pessimistic Concurrency Locking (`lockForUpdate()`)** và Transaction Rollback chống Race Condition mà SQLite không thể thực hiện. | `tests/Feature/Checkouts/Api/AssetCheckoutTest.php`<br/>`tests/Feature/Checkins/Api/AssetCheckinTest.php` |
-| **2** | **Nguyễn Văn Quốc** | **2312729** | **QA Engineer (Senior Automation Tester)** | **Phân vùng 2:** Module Quản lý Tài sản Phần cứng, Dòng Model & Khấu hao | Sử dụng CSDL MySQL K16 để kiểm chứng ràng buộc toàn vẹn duy nhất vật lý (**Unique Index `asset_tag`**) và độ chính xác tính toán khấu hao đường thẳng trên Storage Engine thật. | `tests/Unit/AssetTest.php`<br/>`tests/Unit/DepreciationTest.php`<br/>`tests/Unit/AssetModelTest.php` |
-| **3** | **Nguyễn Đình Thạch** | **2314506** | **Team Leader & Infrastructure Lead** | **Phân vùng 3:** Module Bản quyền Phần mềm, Phụ kiện, Linh kiện & CI/CD K16 | Trực tiếp kiến trúc bộ điều phối `run.mjs`, quản lý vòng đời container Docker MySQL, cấp phát dynamic keys và kiểm thử tranh chấp ghế bản quyền (**Seat Allocation Pool**) trên CSDL cô lập. | `tests/testcontainers/run.mjs`<br/>`.github/workflows/testcontainers.yml`<br/>`tests/Unit/Models/LicenseTest.php` |
+| **1** | **Phạm Nguyễn Ngọc Phước** | **2312718** | **Lead QA (Senior Testing Engineer)** | **Phân vùng 1:** Module API Checkout, Checkin & Quy trình Cấp phát / Thu hồi | Sử dụng container MySQL K16 để kiểm thử hợp đồng API checkout/checkin, trạng thái tài sản và action log. Mã checkout dùng **`lockForUpdate()`** (SQLite không hỗ trợ), nhưng **chưa có test hai request đồng thời** nên chưa chứng minh được cơ chế chống Race Condition. | `tests/Feature/Checkouts/Api/AssetCheckoutTest.php`<br/>`tests/Feature/Checkins/Api/AssetCheckinTest.php` |
+| **2** | **Nguyễn Văn Quốc** | **2312729** | **QA Engineer (Senior Automation Tester)** | **Phân vùng 2:** Module Quản lý Tài sản Phần cứng, Dòng Model & Khấu hao | Sử dụng CSDL MySQL K16 để kiểm chứng tính duy nhất của `asset_tag` (do luật validation `unique_undeleted` ở tầng model đảm bảo; **CSDL không có UNIQUE index** trên cột này) và độ chính xác tính toán khấu hao đường thẳng, kể cả giữa kỳ, trên Storage Engine thật. | `tests/Unit/AssetTest.php`<br/>`tests/Unit/DepreciationTest.php`<br/>`tests/Unit/AssetModelTest.php` |
+| **3** | **Nguyễn Đình Thạch** | **2314506** | **Team Leader & Infrastructure Lead** | **Phân vùng 3:** Module Bản quyền Phần mềm, Phụ kiện, Linh kiện & CI/CD K16 | Trực tiếp kiến trúc bộ điều phối `run.mjs`, quản lý vòng đời container Docker MySQL, cấp phát dynamic keys và kiểm thử đếm và cấp phát ghế bản quyền (**Seat Allocation Pool**, chạy tuần tự) trên CSDL cô lập. | `tests/testcontainers/run.mjs`<br/>`.github/workflows/testcontainers.yml`<br/>`tests/Unit/Models/LicenseTest.php` |
 | **4** | **Nguyễn Thành Minh** | **2312691** | **QA Engineer (Security & Access Control)** | **Phân vùng 4:** Module Người dùng, Phân quyền RBAC, Đa công ty & Security Policy | Sử dụng môi trường sạch K16 để kiểm thử ma trận RBAC và cơ chế cách ly dữ liệu **CompanyableScope** nhằm đảm bảo không có rò rỉ trạng thái giữa các bài test bảo mật. | `tests/Unit/UserTest.php`<br/>`tests/Unit/CompanyScopingTest.php` |
 
 ---
@@ -82,7 +82,7 @@ graph TD
 - **Mã sinh viên:** `2312718`
 - **Vai trò:** Trưởng nhóm Kiểm thử API & Quy trình Cấp phát (Lead QA / API Testing Lead)
 - **Phương pháp luận K16 ứng dụng:**
-  1. **Kiểm thử Concurrency Locking trên MySQL Thật:** Cơ chế khóa bi quan `lockForUpdate()` là tính năng cốt lõi của MySQL InnoDB. Thành viên thực thi các test case trên container K16 để kiểm chứng rằng khi 2 luồng API checkout cùng gọi tới tài sản ID = X, InnoDB sẽ lock row chính xác, luồng thứ 2 bị chặn hoặc nhận lỗi, ngăn chặn hoàn toàn lỗi Double-Allocation.
+  1. **Kiểm thử trên MySQL thật, hướng tới Concurrency Locking:** Mã checkout dùng khóa bi quan `lockForUpdate()` của MySQL InnoDB để chặn Double-Allocation. Các test case hiện chạy tuần tự trên container K16; **chưa có test hai luồng API checkout đồng thời**, nên việc chặn Double-Allocation chưa được chứng minh bằng test (xem mục 5.1).
   2. **Đặc tả 7 Kịch bản Kiểm thử Toàn trình (TC-CO-01 đến TC-CO-07):** Xây dựng bộ test case kiểm thử khép kín: Checkout cho User, Checkout cho Location, Chặn tài sản hỏng, Chặn Double Checkout, Chặn 401 không token, Kiểm tra 422 thiếu payload, và Thu hồi Checkin hoàn trả kho.
   3. **Kiểm tra Tính Toàn vẹn của Action Logs:** Xác minh bản ghi nhật ký tại bảng `action_logs` được ghi nhận chuẩn xác trên schema MySQL với đầy đủ khóa ngoại và dữ liệu kiểm toán.
   4. **Lệnh thực thi chuẩn K16:**
@@ -94,8 +94,8 @@ graph TD
 - **Mã sinh viên:** `2312729`
 - **Vai trò:** Kỹ sư Kiểm thử Phần cứng & Vòng đời Tài chính (Hardware & Financial Life-cycle Tester)
 - **Phương pháp luận K16 ứng dụng:**
-  1. **Kiểm chứng Ràng buộc Vật lý Duy nhất (Unique Tag Constraint):** Kiểm thử `test_asset_tag_unique_constraint_prevents_duplicate_tag()` trực tiếp trên container MySQL để xác minh chỉ mục `UNIQUE KEY assets_asset_tag_unique (asset_tag)` kích hoạt ngoại lệ `QueryException` (MySQL Error 1062 Duplicate entry) khi cố tình ghi đè mã tài sản.
-  2. **Kiểm thử Thuật toán Khấu hao Tuyến tính (Linear Depreciation Math):** Kiểm tra phương thức `getLinearDepreciatedValue()` với kiểu số thực và ngày tháng trên MySQL engine thật, đảm bảo giá trị còn lại không giảm quá giá trị sàn sàn thu hồi (`depreciation_min`).
+  1. **Kiểm chứng tính duy nhất của asset_tag:** `test_asset_tag_uniqueness_is_enforced_by_model_validation()` xác minh model từ chối lưu tag trùng (luật `unique_undeleted`). `test_database_does_not_enforce_asset_tag_uniqueness()` ghi nhận phát hiện: CSDL **không có** UNIQUE index trên `asset_tag` (chỉ có index thường `(deleted_at, asset_tag)`), nên ghi thẳng vào bảng, bỏ qua validation, vẫn lọt bản ghi trùng.
+  2. **Kiểm thử Thuật toán Khấu hao Tuyến tính (Linear Depreciation Math):** Kiểm tra phương thức `getLinearDepreciatedValue()` với kiểu số thực và ngày tháng trên MySQL engine thật, đảm bảo giá trị còn lại không giảm quá giá trị sàn thu hồi (`depreciation_min`). Ba test `test_linear_depreciation_*` kiểm tra công thức giữa kỳ tại 12/36, 18/36, 35/36 và 36/36 tháng.
   3. **Kiểm thử Mã hóa AES & Dynamic Custom Fields:** Xác minh tính toàn vẹn của các trường mở rộng (IMEI, MAC Address) khi mã hóa lưu trữ vào MySQL blob/text field và giải mã hiển thị.
   4. **Lệnh thực thi chuẩn K16:**
      ```powershell
@@ -122,7 +122,7 @@ graph TD
 - **Vai trò:** Kỹ sư Kiểm thử Bảo mật, Phân quyền & Quản trị Danh tính (Security & IAM Testing Engineer)
 - **Phương pháp luận K16 ứng dụng:**
   1. **Kiểm chứng Ma trận Quyền RBAC (`User::hasAccess`):** Sử dụng CSDL MySQL K16 độc lập để nạp dữ liệu quyền hạn phân tầng, kiểm chứng việc cấp phép chính xác cho từng vai trò mà không bị ảnh hưởng bởi cache phân quyền của các phiên kiểm thử trước.
-  2. **Kiểm thử Chống Leo thang Đặc quyền (Privilege Escalation Prevention):** Kiểm chứng chính sách `UserPolicy` ngăn chặn người dùng thường tự sửa quyền hoặc xóa tài khoản Superadmin tối cao.
+  2. **Kiểm thử Chống Leo thang Đặc quyền (Privilege Escalation Prevention):** Kiểm chứng người dùng thường không xóa được người dùng khác, và admin thường/sub-admin không sửa được trường xác thực (`canEditAuthFields`) của Superadmin.
   3. **Kiểm thử Cách ly Dữ liệu Đa Công ty (`CompanyableScope`):** Chạy ma trận kiểm thử Global Scope trên CSDL MySQL thật. Đảm bảo câu lệnh SQL do Eloquent sinh ra luôn có mệnh đề `WHERE company_id = ?`, chứng minh dữ liệu giữa các công ty con hoàn toàn cô lập và không rò rỉ.
   4. **Lệnh thực thi chuẩn K16:**
      ```powershell
@@ -326,7 +326,7 @@ Các mã dưới đây là mã tài liệu của Phân vùng 1. “Đã có tron
 | TC-CO-02 | `test_asset_can_be_checked_out_and_checked_back_in_through_api` | Thực hiện checkout rồi checkin liên tiếp | Cả hai response success; assignment rỗng sau checkin; counter, thời điểm và RTD location đúng | Đã có; workflow K16 chọn chạy |
 | TC-CO-03 | `test_asset_cannot_be_checked_out_if_not_deployable` | Asset dùng status không deployable | Status message error; assignment rỗng; counter không tăng | Đã có |
 | TC-CO-04 | `test_checkout_fails_without_oauth_passport_token` | Gọi API không xác thực | HTTP 401 Unauthorized | Đã có |
-| TC-CO-05 | `test_checkout_request_approval_workflow` và `test_checkout_request` | Gửi yêu cầu cho asset requestable và thử asset non-requestable | Request hợp lệ success, log `requested`; non-requestable bị từ chối | Đã có; **chưa kiểm tra bước admin duyệt** |
+| TC-CO-05 | `test_checkout_request_is_logged_for_requestable_and_rejected_for_non_requestable` và `test_checkout_request` | Gửi yêu cầu cho asset requestable và thử asset non-requestable | Request hợp lệ success, log `requested`; non-requestable bị từ chối | Đã có; **chưa kiểm tra bước admin duyệt** |
 | TC-CO-06 | `test_checkout_fails_if_asset_already_checked_out` | Asset hiện đang gán cho user khác | Status message error; assignment ban đầu không bị ghi đè | Đã có |
 | TC-CO-07 | `test_checkout_to_location_instead_of_user` | Checkout asset trực tiếp cho location | `assigned_type`, `assigned_to`, `location_id`, counter và response đúng | Đã có |
 | TC-CO-08 | `test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log` | Target user không tồn tại; gửi thêm status ID | Error; status/location/assignment/counter không đổi; không có checkout log/event | Đã thêm; CI được cấu hình chạy |
@@ -373,14 +373,14 @@ npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetChec
 - **Chủ trì:** Nguyễn Văn Quốc (2312729)
 - **Tập tin kiểm thử:** [AssetTest.php](file:///d:/KIEM_THU_PHAN_MEM/Do_An/snipe-it-master/tests/Unit/AssetTest.php), `DepreciationTest.php`, `AssetModelTest.php`.
 - **Cơ chế K16 cốt lõi:**
-  - Kiểm chứng ràng buộc duy nhất vật lý: `test_asset_tag_unique_constraint_prevents_duplicate_tag()` kích hoạt lỗi MySQL Duplicate Key khi trùng mã thiết bị.
-  - Kiểm chứng thuật toán khấu hao đường thẳng `getLinearDepreciatedValue()` đảm bảo giá trị sổ sách không bao giờ giảm dưới `depreciation_min` với độ chính xác số thực của MySQL.
+  - Kiểm chứng tính duy nhất của `asset_tag` ở tầng model (`test_asset_tag_uniqueness_is_enforced_by_model_validation()`) và ghi nhận CSDL không có UNIQUE index (`test_database_does_not_enforce_asset_tag_uniqueness()`).
+  - Kiểm chứng thuật toán khấu hao đường thẳng `getLinearDepreciatedValue()`: giá trị giữa kỳ đúng công thức và không bao giờ giảm dưới `depreciation_min`.
 
 ### 5.3 Phân vùng 3: Bản quyền Phần mềm, Phụ kiện, Linh kiện & K16 CI/CD
 - **Chủ trì:** Nguyễn Đình Thạch (2314506)
 - **Tập tin kiểm thử & Hạ tầng:** [LicenseTest.php](file:///d:/KIEM_THU_PHAN_MEM/Do_An/snipe-it-master/tests/Unit/Models/LicenseTest.php), [run.mjs](file:///d:/KIEM_THU_PHAN_MEM/Do_An/snipe-it-master/tests/testcontainers/run.mjs), [.github/workflows/testcontainers.yml](file:///d:/KIEM_THU_PHAN_MEM/Do_An/snipe-it-master/.github/workflows/testcontainers.yml).
 - **Cơ chế K16 cốt lõi:**
-  - Kiểm chứng logic tính ghế trống `LicenseSeat::availCount()`, ngăn chặn Over-allocation khi cấp phát đồng thời trên CSDL MySQL độc lập.
+  - Kiểm chứng logic tính ghế trống `LicenseSeat::availCount()`, ngăn chặn Over-allocation khi cấp phát tuần tự trên CSDL MySQL độc lập (chưa có test cấp phát đồng thời).
   - Kiểm tra Masking Product Key và tự động điều phối tồn kho phụ kiện/linh kiện qua trait `AdjustsQuantity`.
   - Quản trị toàn bộ vòng đời container Docker của nhóm và pipeline CI/CD GitHub Actions.
 

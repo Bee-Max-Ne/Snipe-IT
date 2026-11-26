@@ -835,11 +835,13 @@ class AssetCheckoutTest extends TestCase
     }
 
     /**
-     * TC-CO-05: KIỂM TRA LUỒNG GỬI YÊU CẦU MƯỢN VÀ PHÊ DUYỆT (REQUEST APPROVAL WORKFLOW)
-     * Phương thức: test_checkout_request_approval_workflow
-     * Loại kiểm thử: Business Workflow / Role-based Transition
+     * TC-CO-05: KIỂM TRA GỬI YÊU CẦU MƯỢN TÀI SẢN (CHECKOUT REQUEST)
+     * Phương thức: test_checkout_request_is_logged_for_requestable_and_rejected_for_non_requestable
+     * Loại kiểm thử: Business Workflow
+     * Ghi chú: test chỉ bao phủ bước GỬI yêu cầu; bước duyệt (approval) chưa được kiểm thử.
+     * Tên cũ test_checkout_request_approval_workflow được đổi vì nói quá phạm vi.
      */
-    public function test_checkout_request_approval_workflow(): void
+    public function test_checkout_request_is_logged_for_requestable_and_rejected_for_non_requestable(): void
     {
         Notification::fake();
         $requestableAsset = Asset::factory()->requestable()->create();

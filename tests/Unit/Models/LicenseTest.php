@@ -161,5 +161,20 @@ class LicenseTest extends TestCase
 
         $license->refresh();
         $this->assertEquals(2, $license->availSeatsCount);
+
+        // Ghế đã thu hồi nhưng bị đánh dấu không được cấp lại (unreassignable)
+        // không được tính là ghế trống
+        $seats[1]->unreassignable_seat = true;
+        $seats[1]->save();
+
+        $license->refresh();
+        $this->assertEquals(1, $license->availSeatsCount);
+
+        // Ghế gán cho tài sản (asset_id) cũng không còn trống
+        $seats[2]->asset_id = \App\Models\Asset::factory()->create()->id;
+        $seats[2]->save();
+
+        $license->refresh();
+        $this->assertEquals(0, $license->availSeatsCount);
     }
 }
