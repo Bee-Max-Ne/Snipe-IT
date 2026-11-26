@@ -72,7 +72,7 @@ graph TD
 | **1** | **Phạm Nguyễn Ngọc Phước** | **2312718** | **Lead QA (Senior Testing Engineer)** | **Phân vùng 1:** Module API Checkout, Checkin & Quy trình Cấp phát / Thu hồi | Sử dụng container MySQL K16 để kiểm chứng cơ chế **Pessimistic Concurrency Locking (`lockForUpdate()`)** và Transaction Rollback chống Race Condition mà SQLite không thể thực hiện. | `tests/Feature/Checkouts/Api/AssetCheckoutTest.php`<br/>`tests/Feature/Checkins/Api/AssetCheckinTest.php` |
 | **2** | **Nguyễn Văn Quốc** | **2312729** | **QA Engineer (Senior Automation Tester)** | **Phân vùng 2:** Module Quản lý Tài sản Phần cứng, Dòng Model & Khấu hao | Sử dụng CSDL MySQL K16 để kiểm chứng ràng buộc toàn vẹn duy nhất vật lý (**Unique Index `asset_tag`**) và độ chính xác tính toán khấu hao đường thẳng trên Storage Engine thật. | `tests/Unit/AssetTest.php`<br/>`tests/Unit/DepreciationTest.php`<br/>`tests/Unit/AssetModelTest.php` |
 | **3** | **Nguyễn Đình Thạch** | **2314506** | **Team Leader & Infrastructure Lead** | **Phân vùng 3:** Module Bản quyền Phần mềm, Phụ kiện, Linh kiện & CI/CD K16 | Trực tiếp kiến trúc bộ điều phối `run.mjs`, quản lý vòng đời container Docker MySQL, cấp phát dynamic keys và kiểm thử tranh chấp ghế bản quyền (**Seat Allocation Pool**) trên CSDL cô lập. | `tests/testcontainers/run.mjs`<br/>`.github/workflows/testcontainers.yml`<br/>`tests/Unit/Models/LicenseTest.php` |
-| **4** | **Nguyễn Thành Minh** | **2312691** | **QA Engineer (Security & Access Control)** | **Phân vùng 4:** Module Người dùng, Phân quyền RBAC, Đa công ty & Security Policy | Sử dụng môi trường sạch K16 để kiểm thử ma trận RBAC, chính sách `UserPolicy`, luồng Web/API Passport Bearer Token (`401/403`, Brute-force, Impersonation) và cơ chế cách ly dữ liệu **CompanyableScope** nhằm đảm bảo không có rò rỉ trạng thái giữa các bài test bảo mật. | `phpunit.part4.xml`<br/>`tests/Unit/UserTest.php`<br/>`tests/Unit/CompanyScopingTest.php`<br/>`tests/Feature/Users/SecurityPart4ApiIntegrationTest.php`<br/>`tests/Feature/Users/ImpersonateUserTest.php`<br/>`tests/Feature/Authentication/LoginTest.php` |
+| **4** | **Nguyễn Thành Minh** | **2312691** | **QA Engineer (Security & Access Control)** | **Phân vùng 4:** Module Người dùng, Phân quyền RBAC, Đa công ty & Security Policy | Sử dụng môi trường sạch K16 để kiểm thử ma trận RBAC, chính sách `UserPolicy`, luồng Web/API Passport Bearer Token (`401/403`, Brute-force, 2FA, Impersonation), phân quyền `Groups` và cơ chế cách ly dữ liệu **CompanyableScope** (đạt **82.60%** PCOV Line Coverage trên **564 tests**). | `phpunit.part4.xml`<br/>`tests/Unit/UserTest.php`<br/>`tests/Unit/CompanyScopingTest.php`<br/>`tests/Feature/Users/**`<br/>`tests/Feature/Groups/**`<br/>`tests/Feature/Auth/**` |
 
 ---
 
@@ -121,18 +121,18 @@ graph TD
 - **Mã sinh viên:** `2312691`
 - **Vai trò:** Kỹ sư Kiểm thử Bảo mật, Phân quyền & Quản trị Danh tính (Security & IAM Testing Engineer)
 - **Phương pháp luận K16 ứng dụng:**
-  1. **Kiểm chứng Ma trận Quyền RBAC (`User::hasAccess`):** Sử dụng CSDL MySQL K16 độc lập để nạp dữ liệu quyền hạn phân tầng, kiểm chứng việc cấp phép chính xác cho từng vai trò (`TC-SEC-01..05`) mà không bị ảnh hưởng bởi cache phân quyền của các phiên kiểm thử trước.
-  2. **Kiểm thử Chống Leo thang Đặc quyền & Luồng HTTP/API Passport (`UserPolicy` & `SecurityPart4ApiIntegrationTest`):** Kiểm chứng chính sách `UserPolicy` (`TC-SEC-06..10`), kiểm tra chặn `401 Unauthorized` / `403 Forbidden` qua Passport Bearer Token, chặn nâng quyền `superuser=1`, khóa đăng nhập Brute-force 5 lần sai mật khẩu, luồng Impersonation và tính bất biến của `action_logs` (`TC-SEC-15`, `TC-SEC-API-01..06`).
-  3. **Kiểm thử Cách ly Dữ liệu Đa Công ty (`CompanyableScope`):** Chạy ma trận kiểm thử Global Scope trên CSDL MySQL thật (`TC-SEC-11..14`, `TC-SEC-API-05`). Đảm bảo câu lệnh SQL do Eloquent sinh ra luôn có mệnh đề `WHERE company_id = ?`, chứng minh dữ liệu giữa các công ty con hoàn toàn cô lập và không rò rỉ.
+  1. **Kiểm chứng Ma trận Quyền RBAC (`User::hasAccess` & `Groups`):** Sử dụng CSDL MySQL K16 độc lập để nạp dữ liệu quyền hạn phân tầng, kiểm chứng việc cấp phép chính xác cho từng vai trò (`TC-SEC-01..05` và bộ `tests/Feature/Groups/`) mà không bị ảnh hưởng bởi cache phân quyền của các phiên kiểm thử trước.
+  2. **Kiểm thử Chống Leo thang Đặc quyền & Luồng HTTP/API Passport (`UserPolicy` & `SecurityPart4ApiIntegrationTest`):** Kiểm chứng chính sách `UserPolicy` (`TC-SEC-06..10`), chặn `401 Unauthorized` / `403 Forbidden` qua Passport Bearer Token, chặn nâng quyền `superuser=1`, khóa Brute-force 5 lần sai mật khẩu, 2FA TOTP & Logout, Impersonation và tính bất biến của `action_logs` (`TC-SEC-15`, `TC-SEC-API-01..10`).
+  3. **Kiểm thử Cách ly Dữ liệu Đa Công ty (`CompanyableScope` & `CompanyableTrait`):** Chạy ma trận kiểm thử Global Scope & checkout cha-con trên CSDL MySQL thật (`TC-SEC-11..14`, `TC-SEC-API-05`, `08`, `09`), đảm bảo dữ liệu giữa các công ty con hoàn toàn cô lập và không rò rỉ.
   4. **Lệnh thực thi chuẩn K16 & Xuất bằng chứng (xem chi tiết tại [`README_REPRODUCE_PART4.md`](README_REPRODUCE_PART4.md)):**
      ```powershell
-     # Chạy toàn bộ 115 tests Phân vùng 4 (Unit + Feature/API) trên Docker MySQL 8.0.36
+     # Chạy toàn bộ 564 tests Phân vùng 4 (Unit + Users + Groups + Auth/API) trên Docker MySQL 8.0.36
      .\run_part4_tests.ps1
 
-     # Hoặc chạy nhanh 26 lượt kiểm thử an ninh trọng tâm (TC-SEC-* & TC-SEC-API-*)
+     # Hoặc chạy nhanh 30 lượt kiểm thử an ninh trọng tâm (TC-SEC-* & TC-SEC-API-*)
      .\run_part4_tests.ps1 -Filter test_tc_sec_
 
-     # Chạy trực tiếp qua K16 runner và đóng gói bằng chứng (JUnit, TestDox, SHA-256, ZIP)
+     # Chạy trực tiếp qua K16 runner và đóng gói bằng chứng (JUnit, PCOV Coverage, TestDox, SHA-256, ZIP)
      $env:PHP_BINARY = (Get-Command php).Source
      node tests/testcontainers/run.mjs -c phpunit.part4.xml
      .\export_evidence.ps1 -Filter test_tc_sec_
@@ -301,11 +301,12 @@ flowchart TD
 
 ### 5.4 Phân vùng 4: Người dùng, Phân quyền RBAC, Đa công ty & Security Policy
 - **Chủ trì:** Nguyễn Thành Minh (2312691)
-- **Tập tin kiểm thử & Cấu hình:** [`phpunit.part4.xml`](phpunit.part4.xml), [`UserTest.php`](tests/Unit/UserTest.php), [`CompanyScopingTest.php`](tests/Unit/CompanyScopingTest.php), [`SecurityPart4ApiIntegrationTest.php`](tests/Feature/Users/SecurityPart4ApiIntegrationTest.php), [`ImpersonateUserTest.php`](tests/Feature/Users/ImpersonateUserTest.php), [`LoginTest.php`](tests/Feature/Authentication/LoginTest.php), [`.github/workflows/testcontainers_phan_vung_4.yml`](.github/workflows/testcontainers_phan_vung_4.yml).
-- **Cơ chế K16 cốt lõi:**
-  - Kiểm thử ma trận RBAC `User::hasAccess()`, ngăn chặn Privilege Escalation trong `UserPolicy` (`TC-SEC-01..10`) và tính bất biến của `action_logs` (`TC-SEC-15`).
-  - Kiểm thử tích hợp HTTP Web & Passport OAuth2 Bearer Token (`TC-SEC-API-01..06`): từ chối `401`/`403`, chống tự nâng quyền `superuser=1`, khóa đăng nhập Brute-force (`login_attempts`), luồng Impersonation và ghi bằng chứng CSDL thật `mysql_container_proof.json` (`mysql:8.0.36`).
-  - Kiểm chứng cơ chế cách ly dữ liệu đa người thuê `CompanyableScope` trên CSDL cô lập (`TC-SEC-11..14`, `TC-SEC-API-05`), chứng minh không xảy ra rò rỉ dữ liệu chéo giữa Công ty A và Công ty B.
+- **Tập tin kiểm thử & Cấu hình:** [`phpunit.part4.xml`](phpunit.part4.xml), [`UserTest.php`](tests/Unit/UserTest.php), [`CompanyScopingTest.php`](tests/Unit/CompanyScopingTest.php), [`SecurityPart4ApiIntegrationTest.php`](tests/Feature/Users/SecurityPart4ApiIntegrationTest.php), `tests/Feature/Users/**`, `tests/Feature/Groups/**`, `tests/Feature/Auth/**`, `tests/Feature/Authentication/**`, [`.github/workflows/testcontainers_phan_vung_4.yml`](.github/workflows/testcontainers_phan_vung_4.yml).
+- **Cơ chế K16 cốt lõi & Kết quả thực tế:**
+  - Kiểm thử ma trận RBAC `User::hasAccess()`, `Groups`, ngăn chặn Privilege Escalation trong `UserPolicy` (`TC-SEC-01..10`) và tính bất biến của `action_logs` (`TC-SEC-15`, `TC-SEC-API-10`).
+  - Kiểm thử tích hợp HTTP Web & Passport OAuth2 Bearer Token (`TC-SEC-API-01..10`): từ chối `401`/`403`, chống tự nâng quyền `superuser=1`, khóa Brute-force (`login_attempts`), 2FA TOTP & Logout (`LoginController`), Impersonation, cô lập `selectlist`/`history`/`ldapsync` và ghi bằng chứng CSDL thật `mysql_container_proof.json` (`mysql:8.0.36`).
+  - Kiểm chứng cơ chế cách ly dữ liệu đa người thuê `CompanyableScope` & `CompanyableTrait::canCheckoutTo()` trên CSDL cô lập (`TC-SEC-11..14`, `TC-SEC-API-05`, `08`, `09`), chứng minh không xảy ra rò rỉ dữ liệu chéo giữa Công ty A và Công ty B.
+  - **Kết quả đo trên MySQL 8.0.36 + PCOV 1.0.12:** **564 tests / 2,149 assertions PASS 100%**, độ bao phủ dòng **82.60%** (`1,828 / 2,213` statements trên 10 tệp phạm vi Phân vùng 4).
   - Tài liệu hướng dẫn tái lập & báo cáo đối chiếu chi tiết của Phân vùng 4: [`README_REPRODUCE_PART4.md`](README_REPRODUCE_PART4.md), [`BAO_CAO_THUC_NGHIEM_METRICS_PHAN_VUNG_4.md`](BAO_CAO_THUC_NGHIEM_METRICS_PHAN_VUNG_4.md).
 
 ---
@@ -379,9 +380,9 @@ npm run test:integration:testcontainers -- tests/Unit/AssetTest.php
 # 3. Chạy bài kiểm thử Ghế Bản quyền & Điều phối Số lượng (Phân vùng 3):
 npm run test:integration:testcontainers -- tests/Unit/Models/LicenseTest.php
 
-# 4. Chạy toàn bộ bộ kiểm thử Phân vùng 4 (RBAC, Security Policy, FMCS & API Integration - 115 tests):
+# 4. Chạy toàn bộ bộ kiểm thử Phân vùng 4 (RBAC, Groups, Security Policy, FMCS & Auth/API - 564 tests):
 .\run_part4_tests.ps1
-# Hoặc chạy lọc 26 tests trọng tâm & đóng gói bằng chứng:
+# Hoặc chạy lọc 30 lượt kiểm thử trọng tâm & đóng gói bằng chứng:
 .\export_evidence.ps1 -Filter test_tc_sec_
 # Hoặc chạy trực tiếp qua K16 Testcontainers runner (chi tiết xem README_REPRODUCE_PART4.md):
 node tests/testcontainers/run.mjs -c phpunit.part4.xml

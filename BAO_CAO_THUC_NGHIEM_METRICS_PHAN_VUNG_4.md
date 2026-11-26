@@ -11,17 +11,17 @@
 
 ## 1. TỔNG QUAN KẾT QUẢ THỰC NGHIỆM (EXECUTION METRICS & SUMMARY)
 
-Bộ kiểm thử của Phân vùng 4 đã được thực thi toàn diện theo kỹ thuật **K16 Testcontainers (`tests/testcontainers/run.mjs` -> Docker `mysql:8.0.36`)** trên cả máy cục bộ (Windows / PHP 8.3.26) và GitHub Actions CI/CD (Ubuntu / PHP 8.2 + PCOV Engine — [Run #45632978652](https://github.com/Bee-Max-Ne/Snipe-IT/actions/runs/45632978652)).
+Bộ kiểm thử của Phân vùng 4 đã được thực thi toàn diện theo kỹ thuật **K16 Testcontainers (`tests/testcontainers/run.mjs` -> Docker `mysql:8.0.36`)** trên cả máy cục bộ (Windows / PHP 8.3.26 + PCOV 1.0.12) và GitHub Actions CI/CD (Ubuntu / PHP 8.2 + PCOV Engine — [Run #45740176366](https://github.com/Bee-Max-Ne/Snipe-IT/actions/runs/45740176366)).
 
 ### 1.1 Bảng Chỉ Số Thực Nghiệm Tổng Hợp (Executive Metrics Dashboard)
 
 | Chỉ số đo lường (Metric) | Kế hoạch / Yêu cầu K16 | Kết quả thực tế (K16 MySQL 8.0.36) | Đánh giá |
 | :--- | :---: | :---: | :---: |
-| **Ca kiểm thử trọng tâm tự thiết kế** | 15 Unit + $\ge 5$ Integration | **15 Unit (`TC-SEC-01..15`) + 6 Feature/API (`TC-SEC-API-01..06`)** | Vượt chỉ tiêu K16 |
-| **Số lần chạy trọng tâm (có DataProvider)**| 26 executions | **26 executions / 135 assertions** | ✅ **PASS 100%** |
-| **Toàn bộ Suite Phân vùng 4 (`phpunit.part4.xml`)** | 5 tệp Unit + Feature | **115 tests / 443 assertions** (`UserTest`, `CompanyScopingTest`, `SecurityPart4ApiIntegrationTest`, `ImpersonateUserTest`, `LoginTest`) | ✅ **PASS 100%** |
-| **Số ca kiểm thử Thất bại / Lỗi** | 0 | **0 failures, 0 errors** | ✅ ZERO FAILURE |
-| **Thời gian thực thi trên CI/CD (Linux K16 + PCOV)** | $\le 600$ giây | **~57 giây** (kèm sinh HTML & Clover XML) | ✅ Tối ưu |
+| **Ca kiểm thử trọng tâm tự thiết kế** | 15 Unit + $\ge 5$ Integration | **15 Unit (`TC-SEC-01..15`) + 10 Feature/API (`TC-SEC-API-01..10`)** | Vượt chỉ tiêu K16 |
+| **Số lần chạy trọng tâm (có DataProvider)**| 30 executions | **30 executions / 217 assertions** | ✅ **PASS 100%** |
+| **Toàn bộ Suite Phân vùng 4 (`phpunit.part4.xml`)** | Unit + `Users` + `Groups` + `Auth` + `Authentication` | **564 tests / 2,149 assertions** (`0 failures`, `0 errors`, `0 skipped`) | ✅ **PASS 100%** |
+| **Độ bao phủ dòng (PCOV 1.0.12 / Clover XML)** | $\ge 80.0\%$ | **82.60% (`1,828 / 2,213` statements)** trên 10 tệp phạm vi | ✅ **ĐẠT NGƯỠNG ($\ge 80\%$)** |
+| **Thời gian thực thi trên CI/CD (Linux K16 + PCOV)** | $\le 600$ giây | **~165 giây (~2 phút 45 giây)** cho toàn bộ 564 tests + Coverage | ✅ Tối ưu *(Docker Windows local: `42:59.879`)* |
 | **Chứng từ log & Toàn vẹn** | JUnit XML + Coverage + Hash | `junit_part4_report.xml`, `coverage_clover.xml`, `coverage-html/`, `testdox.html`, `mysql_container_proof.json`, `environment_metadata.json`, `checksums.sha256` | ✅ Chuẩn công nghiệp |
 
 ---
@@ -39,15 +39,15 @@ Bảng dưới đây đối chiếu 1-1 các ca kiểm thử được đặc t�
 | **`TC-SEC-05`** | Từ chối mặc định khi không quyền, không nhóm | `TC-SEC-05` (`UserTest::test_tc_sec_05_...`) | Unit |
 | **`TC-SEC-06`** | Chặn User thường gửi API `PUT /users` nâng quyền `superuser = 1` (`403`) | `TC-SEC-06` (`UserTest`) + `TC-SEC-API-02` (`SecurityPart4ApiIntegrationTest`) | Unit + Feature/API |
 | **`TC-SEC-07`** | Chặn Admin thường sửa auth field / xóa tài khoản Superadmin | `TC-SEC-07` (`UserTest`) + `TC-SEC-API-03` (`SecurityPart4ApiIntegrationTest`) | Unit + Web/API |
-| **`TC-SEC-08`** | Khóa đăng nhập Brute-force sau 5 lần nhập sai mật khẩu | `TC-SEC-API-04` (`SecurityPart4ApiIntegrationTest`) + `LoginTest` | Feature/Auth |
-| *(Mở rộng Bảo mật)* | Ranh giới mạo danh `mayImpersonate()`, tự xóa mình, khóa tạo Floater, `Actionlog`, thiếu Bearer Token (`401`) | `TC-SEC-08`, `09`, `10`, `15` (`UserTest`) + `TC-SEC-API-01`, `06` + `ImpersonateUserTest` | Unit + Feature |
-| **`TC-FMC-01`, `03`** | Cách ly tài sản & danh bạ nhân sự giữa Công ty A và B (Web/API Bearer Token) | `TC-SEC-11` (`CompanyScopingTest`) + `TC-SEC-API-05` (`SecurityPart4ApiIntegrationTest`) | Unit + Feature/API |
-| **`TC-FMC-02`** | Chặn cấp phát tài sản chéo giữa 2 công ty | `TC-SEC-13` (`CompanyScopingTest::test_tc_sec_13_...`) | Unit |
-| **`TC-FMC-04`, `05`** | Chế độ Strict Mode vs Floater Mode & Ma trận 6 Models + Pivot `company_user` | `TC-SEC-12`, `TC-SEC-14` (`CompanyScopingTest`, 6 datasets) | Unit (DataProvider) |
+| **`TC-SEC-08`** | Khóa đăng nhập Brute-force sau 5 lần nhập sai mật khẩu | `TC-SEC-API-04` (`SecurityPart4ApiIntegrationTest`) + `LoginTest` + `TwoFactorRateLimitTest` | Feature/Auth |
+| *(Mở rộng Bảo mật & 2FA)* | Mạo danh `mayImpersonate()`, tự xóa mình, khóa tạo Floater, `Actionlog`, `401` API, 2FA/Logout, `ldapsync` | `TC-SEC-08`, `09`, `10`, `15` (`UserTest`) + `TC-SEC-API-01`, `06`, `07`, `08`, `10` + `tests/Feature/Groups/` + `tests/Feature/Auth/` | Unit + Feature |
+| **`TC-FMC-01`, `03`** | Cách ly tài sản & danh bạ nhân sự giữa Công ty A và B (Web/API Bearer Token) | `TC-SEC-11` (`CompanyScopingTest`) + `TC-SEC-API-05`, `08` (`SecurityPart4ApiIntegrationTest`) + `tests/Feature/Users/` | Unit + Feature/API |
+| **`TC-FMC-02`** | Chặn cấp phát tài sản chéo giữa 2 công ty (User & Location phân cấp) | `TC-SEC-13` (`CompanyScopingTest`) + `TC-SEC-API-09` (`SecurityPart4ApiIntegrationTest`) | Unit + Feature |
+| **`TC-FMC-04`, `05`** | Chế độ Strict Mode vs Floater Mode & Ma trận 6 Models + Pivot `company_user` | `TC-SEC-12`, `TC-SEC-14` (`CompanyScopingTest`, 6 datasets) + `FloaterModeGateTest` | Unit + Feature |
 
 ---
 
-## 3. BẢNG CHI TIẾT 26 LẦN THỰC THI TRỌNG TÂM (`TC-SEC-*` & `TC-SEC-API-*`)
+## 3. BẢNG CHI TIẾT 30 LẦN THỰC THI TRỌNG TÂM (`TC-SEC-*` & `TC-SEC-API-*`)
 
 | Mã Ca Test | Tên Phương Thức Kiểm Thử (Method Name) | Tệp Nguồn Test | Assertions | Trạng Thái |
 | :---: | :--- | :--- | :---: | :---: |
@@ -72,23 +72,33 @@ Bảng dưới đây đối chiếu 1-1 các ca kiểm thử được đặc t�
 | **`TC-SEC-API-04`** | `test_tc_sec_api_04_login_brute_force_lockout_enforced_after_max_attempts` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 13 | 🟢 **PASS** |
 | **`TC-SEC-API-05`** | `test_tc_sec_api_05_fmcs_api_bearer_token_isolates_users_and_assets_across_companies` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 8 | 🟢 **PASS** |
 | **`TC-SEC-API-06`** | `test_tc_sec_api_06_impersonation_feature_flow_and_k16_mysql_container_proof` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 8 | 🟢 **PASS** |
-| **HỒI QUY ĐẦY ĐỦ** | **Toàn bộ 5 tệp trong `phpunit.part4.xml` (K16 MySQL 8.0.36)** | — | **443 assertions (115 tests)** | 🟢 **PASS 100%** |
+| **`TC-SEC-API-07`** | `test_tc_sec_api_07_login_controller_two_factor_and_logout_security_enforcement` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 28 | 🟢 **PASS** |
+| **`TC-SEC-API-08`** | `test_tc_sec_api_08_users_api_self_selectlist_history_and_privileged_endpoints` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 13 | 🟢 **PASS** |
+| **`TC-SEC-API-09`** | `test_tc_sec_api_09_companyable_trait_checkout_matrix_for_locations_hierarchy_and_floater` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 11 | 🟢 **PASS** |
+| **`TC-SEC-API-10`** | `test_tc_sec_api_10_user_security_scopes_hierarchy_and_actionlog_audit_queries` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | 19 | 🟢 **PASS** |
+| **HỒI QUY ĐẦY ĐỦ** | **Toàn bộ `phpunit.part4.xml` (`Unit` + `Users` + `Groups` + `Auth` + `Authentication` trên K16 MySQL 8.0.36)** | — | **2,149 assertions (564 tests)** | 🟢 **PASS 100%** |
 
 ---
 
-## 4. CHỨNG MINH ĐỘ BAO PHỦ MÃ NGUỒN (CODE COVERAGE & THRESHOLDS)
+## 4. CHỨNG MINH ĐỘ BAO PHỦ MÃ NGUỒN (CODE COVERAGE ĐO THỰC TẾ BẰNG PCOV 1.0.12)
 
-Nhờ thiết kế kiểm thử tập trung vào ranh giới an ninh hạt nhân (Core Security Invariants), mức độ bao phủ mã nguồn của Phân vùng 4 đạt kết quả xuất sắc:
+Số liệu dưới đây được trích xuất trực tiếp từ **`coverage_clover.xml`** do **PHP 8.3.26 + PCOV 1.0.12** đo tự động khi chạy toàn bộ **564 tests** trên **Docker MySQL 8.0.36** (`phpunit.part4.xml`):
 
-- **Hàm `User::hasAccess()` & `User::isSuperUser()`:** Đạt **100% Line & Branch Coverage** (kiểm thử đầy đủ mọi nhánh: superuser bypass, deny `-1`, allow `1`, inherit từ group, và default deny).
-- **Hàm `User::mayImpersonate()` & `User::canImpersonate()`:** Đạt **100% Branch Coverage** (bao phủ trọn vẹn 5 guard clauses: tự mạo danh, mạo danh superuser, mạo danh tài khoản bị khóa `activated = 0`, mạo danh tài khoản đã xóa mềm `deleted_at != null`, và user không có đặc quyền).
-- **Gate `canEditAuthFields` (`AuthServiceProvider.php`):** Đạt **100% Branch Coverage** (chặn sub-admin sửa mật khẩu superadmin, chặn regular admin sửa superadmin, cho phép superadmin chỉnh sửa).
-- **Lớp `DeleteUserRequest`:** Đạt **100% Validation Rule Coverage** (chặn quản trị viên tự xóa chính mình).
-- **Hàm `User::canGrantFloaterStatus()`:** Đạt **100% Branch Coverage** (chặn admin công ty tạo user floater cấp tập đoàn).
-- **Trait `CompanyableTrait::canCheckoutTo()`:** Đạt **100% Logic Path Coverage** (ngăn checkout chéo công ty cho User và Location).
-- **Model `Actionlog`:** Đạt **100% Audit Integrity Coverage** (bảo toàn tính bất biến và quan hệ `adminuser`).
+| Tệp nguồn trong phạm vi Phân vùng 4 | Statements Covered | Line Coverage (%) | Methods Covered |
+| :--- | :---: | :---: | :---: |
+| `app/Http/Requests/DeleteUserRequest.php` | `36 / 36` | **100.00%** | `4 / 4` (`100.00%`) |
+| `app/Policies/UserPolicy.php` | `2 / 2` | **100.00%** | `2 / 2` (`100.00%`) |
+| `app/Http/Controllers/Users/UsersController.php` | `400 / 427` | **93.68%** | `6 / 16` (`37.50%`) |
+| `app/Providers/AuthServiceProvider.php` | `133 / 146` | **91.10%** | `0 / 1` *(Closure Gates)* |
+| `app/Models/User.php` | `549 / 642` | **85.51%** | `60 / 91` (`65.93%`) |
+| `app/Models/Traits/CompanyableTrait.php` | `22 / 26` | **84.62%** | `2 / 3` (`66.67%`) |
+| `app/Http/Controllers/Api/UsersController.php` | `444 / 542` | **81.92%** | `5 / 16` (`31.25%`) |
+| `app/Models/Actionlog.php` | `127 / 183` | **69.40%** | `11 / 33` (`33.33%`) |
+| `app/Http/Controllers/Auth/LoginController.php` | `114 / 207` | **55.07%** | `6 / 14` (`42.86%`) *(phần chưa phủ là nhánh LDAP/SAML IdP ngoài)* |
+| `app/Models/CompanyableScope.php` | `1 / 2` | **50.00%** | `1 / 2` *(dòng còn lại là hàm rỗng `@todo remove()` trong core Snipe-IT)* |
+| **TỔNG CỘNG PHẠM VI PHÂN VÙNG 4 (10 tệp)** | **`1,828 / 2,213`** | **82.60%** | **`97 / 182` (`53.30%`)** |
 
-> **Kết luận:** Tỷ lệ Line Coverage trên toàn bộ các phương thức an ninh trọng yếu của Phân vùng 4 đạt **> 95%**, vượt xa ngưỡng yêu cầu tối thiểu (**80% Threshold**) theo quy định đồ án.
+> **Kết luận đối soát tự động (`SUMMARY_REPORT.md`):** Độ bao phủ dòng thực tế đo từ PCOV đạt **82.60% (`1,828 / 2,213 statements`)**, **✅ ĐẠT NGƯỠNG ($\ge 80\%$)** theo quy chuẩn đánh giá đề ra. Chi tiết tô màu từng dòng mã nguồn được lưu tại `storage/logs/test-reports/coverage-html/index.html`.
 
 ---
 
@@ -159,8 +169,8 @@ flowchart TD
 
 ## 6. KẾT LUẬN & ĐÁNH GIÁ CHUNG
 
-Bộ kiểm thử tự động của **Phân vùng 4** do sinh viên **Nguyễn Thành Minh (MSSV: 2312691)** đảm nhiệm đã hoàn thành xuất sắc 100% mục tiêu đề ra:
-1. **Thiết kế hoàn chỉnh 15 ca kiểm thử an ninh chuyên sâu**, bao quát đầy đủ 4 module hạt nhân: RBAC, UserPolicy, FMCS Multi-tenancy, và Actionlog.
-2. **20/20 test executions đạt kết quả PASS tuyệt đối** với **92 assertions** vững chắc, không phát sinh bất kỳ cảnh báo deprecation hay lỗi suy biến nào.
-3. **Quy trình Git chuẩn mực:** Thực hiện 15 commit nguyên tử độc lập kèm thông điệp tiếng Việt tường minh chuẩn Conventional Commits.
-4. **Tích hợp trọn vẹn CI/CD và K16 Testcontainers (MySQL 8.0.36):** Sẵn sàng chạy tự động trên GitHub Actions và bất kỳ máy tính mới nào chỉ bằng 1 thao tác.
+Bộ kiểm thử tự động của **Phân vùng 4** do sinh viên **Nguyễn Thành Minh (MSSV: 2312691)** đảm nhiệm đã hoàn thành toàn bộ mục tiêu đề ra:
+1. **Thiết kế hoàn chỉnh 25 ca kiểm thử an ninh & tích hợp chuyên sâu** (`15 Unit TC-SEC-01..15` + `10 Feature/API TC-SEC-API-01..10`), bao quát RBAC, `UserPolicy`, `Groups`, `2FA`/`Logout`, FMCS Multi-tenancy và `Actionlog`.
+2. **Độ tin cậy & Bao phủ thực tế đạt chuẩn:** Toàn bộ **564 tests / 2,149 assertions** (`30 executions` trọng tâm + hồi quy `Unit`, `Users`, `Groups`, `Auth`, `Authentication`) đạt **PASS 100%** trên **Docker MySQL 8.0.36** (`0 failures`, `0 errors`, `0 skipped`), với độ bao phủ đo bằng **PCOV 1.0.12** đạt **82.60% (`1,828 / 2,213 statements`)** — vượt ngưỡng `>= 80%`.
+3. **Quy trình Git chuẩn mực:** Tổ chức commit nguyên tử theo Conventional Commits tiếng Việt không dấu/có dấu rõ ràng, kèm bảng truy vết 1-1 với `BAO_CAO_GK_Nhom05.docx`.
+4. **Tích hợp trọn vẹn CI/CD và K16 Testcontainers (`mysql:8.0.36`):** Chạy tự động qua `node tests/testcontainers/run.mjs -c phpunit.part4.xml` trên cả Windows (`.\export_evidence.ps1`) và GitHub Actions ([Run #45740176366](https://github.com/Bee-Max-Ne/Snipe-IT/actions/runs/45740176366)).

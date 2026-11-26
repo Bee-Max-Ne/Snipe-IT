@@ -49,10 +49,10 @@ php artisan key:generate --env=testing
 ### Cách 1: Chạy tự động qua K16 Testcontainers trên Windows (Khuyên dùng)
 Đảm bảo Docker Desktop đang bật, sau đó chạy trực tiếp script đã chuẩn hóa:
 ```powershell
-# Chạy toàn bộ 115 tests (Unit + Feature/API Integration) trên Docker MySQL 8.0.36
+# Chạy toàn bộ 564 tests (Unit + Users + Groups + Auth/API Integration) trên Docker MySQL 8.0.36 + tự xuất PCOV Coverage nếu có driver
 .\run_part4_tests.ps1
 
-# Hoặc chạy nhanh 26 lượt kiểm thử an ninh trọng tâm (TC-SEC-* & TC-SEC-API-*)
+# Hoặc chạy nhanh 30 lượt kiểm thử an ninh trọng tâm (TC-SEC-* & TC-SEC-API-*)
 .\run_part4_tests.ps1 -Filter test_tc_sec_
 ```
 *(Nếu máy chưa bật Docker và cần chạy nhanh bằng PHPUnit cục bộ, thêm cờ `-FallbackLocal`.)*
@@ -101,6 +101,10 @@ node tests/testcontainers/run.mjs -c phpunit.part4.xml
 | **`TC-SEC-API-04`** | `test_tc_sec_api_04_login_brute_force_lockout_enforced_after_max_attempts` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Khóa đăng nhập Brute-force sau 5 lần sai mật khẩu (`login_attempts` + `ThrottlesLogins`). | **PASS** |
 | **`TC-SEC-API-05`** | `test_tc_sec_api_05_fmcs_api_bearer_token_isolates_users_and_assets_across_companies` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Cô lập nhân sự và tài sản đa công ty qua Passport Bearer Token API. | **PASS** |
 | **`TC-SEC-API-06`** | `test_tc_sec_api_06_impersonation_feature_flow_and_k16_mysql_container_proof` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Luồng HTTP Impersonation + `Actionlog` + xuất `mysql_container_proof.json` (MySQL 8.0.36). | **PASS** |
+| **`TC-SEC-API-07`** | `test_tc_sec_api_07_login_controller_two_factor_and_logout_security_enforcement` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Xác thực 2FA (enroll/TOTP hợp lệ vs sai), chặn `GET /logout` (`405`), xóa session `POST /logout`. | **PASS** |
+| **`TC-SEC-API-08`** | `test_tc_sec_api_08_users_api_self_selectlist_history_and_privileged_endpoints` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Phân quyền `/api/v1/users/me`, `selectlist` FMCS, chặn `403` `ldapsync`/`history`/`eulas`. | **PASS** |
+| **`TC-SEC-API-09`** | `test_tc_sec_api_09_companyable_trait_checkout_matrix_for_locations_hierarchy_and_floater` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Ma trận `CompanyableTrait::canCheckoutTo()` cho Location, cha-con FMCS và Floater mode. | **PASS** |
+| **`TC-SEC-API-10`** | `test_tc_sec_api_10_user_security_scopes_hierarchy_and_actionlog_audit_queries` | `tests/Feature/Users/SecurityPart4ApiIntegrationTest.php` | Scope `onlySuperAdmins`, `byGroup`, phân cấp Manager-Subordinate và truy vấn `Actionlog::forApiHistory`. | **PASS** |
 
 ---
 
