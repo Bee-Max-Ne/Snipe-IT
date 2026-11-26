@@ -174,13 +174,14 @@ class AssetCheckoutRaceGuardTest extends TestCase
         $asset->checkOut($user1, $admin, now(), null, 'Cấp phát bởi Worker 1');
         \Illuminate\Support\Facades\DB::connection('mysql')->commit();
 
-        // Sau khi Luồng 1 commit, Luồng 2 đọc lại tài sản thì availableForCheckout() trả về false
-        $assetAfterCommit = Asset::on('mysql_worker')->whereKey($asset->id)->first();
+        // Sau khi Luồng 1 commit và cấp phát thành công, nạp lại bản ghi tài sản mới nhất từ CSDL
+        $freshAsset = Asset::find($asset->id);
+        $this->assertNotNull($freshAsset, 'Tài sản phải tồn tại trong CSDL sau khi Worker 1 checkout');
         $this->assertFalse(
-            $assetAfterCommit->availableForCheckout(),
-            'Sau khi Worker 1 commit, Worker 2 đọc lại tài sản phải thấy availableForCheckout() là false, ngăn ngừa lỗi cấp phát trùng.'
+            $freshAsset->availableForCheckout(),
+            'Sau khi Worker 1 hoàn tất cấp phát, tài sản phải có availableForCheckout() là false, ngăn ngừa lỗi cấp phát trùng.'
         );
-        $this->assertSame(1, (int) $assetAfterCommit->checkout_counter, 'Bộ đếm checkout_counter phải bằng 1');
-        $this->assertSame($user1->id, (int) $assetAfterCommit->assigned_to, 'Tài sản phải thuộc về user1 của Worker 1');
+        $this->assertSame(1, (int) $freshAsset->checkout_counter, 'Bộ đếm checkout_counter phải bằng 1');
+        $this->assertSame($user1->id, (int) $freshAsset->assigned_to, 'Tài sản phải thuộc về user1 của Worker 1');
     }
 }

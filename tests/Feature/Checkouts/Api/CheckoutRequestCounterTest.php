@@ -22,6 +22,7 @@ class CheckoutRequestCounterTest extends TestCase
         // unconditionally decrement requests_counter, which drove the
         // counter negative and misrepresented pending admin work.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
+        /** @var User $user */
         $user = User::factory()->create();
 
         $this->actingAsForApi($user)
@@ -40,6 +41,7 @@ class CheckoutRequestCounterTest extends TestCase
         // decrement fired, so the counter and the pending queue drifted
         // apart.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
+        /** @var User $user */
         $user = User::factory()->create();
 
         $this->actingAsForApi($user)
@@ -65,6 +67,7 @@ class CheckoutRequestCounterTest extends TestCase
         // Companion to the two above: a legitimate request-then-cancel
         // round trip must leave the counter at 0.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
+        /** @var User $user */
         $user = User::factory()->create();
 
         $this->actingAsForApi($user)
@@ -86,6 +89,7 @@ class CheckoutRequestCounterTest extends TestCase
         // Combined regression: request once, cancel twice. The second
         // cancel must 404 without dragging the counter below zero.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
+        /** @var User $user */
         $user = User::factory()->create();
 
         $this->actingAsForApi($user)->postJson(route('api.assets.requests.store', $asset))->assertOk();

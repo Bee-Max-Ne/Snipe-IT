@@ -20,7 +20,10 @@ class AccessoryCheckinTest extends TestCase implements TestsFullMultipleCompanie
         $accessory = Accessory::factory()->checkedOutToUser()->create();
         $accessoryCheckout = $accessory->checkouts->first();
 
-        $this->actingAsForApi(User::factory()->create())
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $this->actingAsForApi($user)
             ->postJson(route('api.accessories.checkin', $accessoryCheckout))
             ->assertForbidden();
     }
@@ -29,7 +32,9 @@ class AccessoryCheckinTest extends TestCase implements TestsFullMultipleCompanie
     {
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
+        /** @var User $superUser */
         $superUser = $companyA->users()->save(User::factory()->superuser()->make());
+        /** @var User $userInCompanyA */
         $userInCompanyA = User::factory()->forCompany($companyA)->checkinAccessories()->create();
         $accessoryForCompanyB = Accessory::factory()->for($companyB)->checkedOutToUser()->create();
         $anotherAccessoryForCompanyB = Accessory::factory()->for($companyB)->checkedOutToUser()->create();
@@ -66,7 +71,10 @@ class AccessoryCheckinTest extends TestCase implements TestsFullMultipleCompanie
 
         $accessoryCheckout = $accessory->checkouts->first();
 
-        $this->actingAsForApi(User::factory()->checkinAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkinAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkin', $accessoryCheckout))
             ->assertStatusMessageIs('success');
 
@@ -77,6 +85,7 @@ class AccessoryCheckinTest extends TestCase implements TestsFullMultipleCompanie
     public function test_checkin_is_logged()
     {
         $user = User::factory()->create();
+        /** @var User $actor */
         $actor = User::factory()->checkinAccessories()->create();
 
         $accessory = Accessory::factory()->checkedOutToUser($user)->create();
@@ -101,6 +110,7 @@ class AccessoryCheckinTest extends TestCase implements TestsFullMultipleCompanie
     public function test_checkin_of_accessory_checked_out_to_location_is_logged_against_the_location()
     {
         $location = Location::factory()->create();
+        /** @var User $actor */
         $actor = User::factory()->checkinAccessories()->create();
 
         $accessory = Accessory::factory()->checkedOutToLocation($location)->create();
@@ -130,7 +140,10 @@ class AccessoryCheckinTest extends TestCase implements TestsFullMultipleCompanie
 
         $accessoryCheckout = $accessory->checkouts->first();
 
-        $this->actingAsForApi(User::factory()->checkinAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkinAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkin', $accessoryCheckout))
             ->assertStatusMessageIs('success');
 
@@ -164,7 +177,10 @@ class AccessoryCheckinTest extends TestCase implements TestsFullMultipleCompanie
 
         $this->assertTrue($acceptance->isPending());
 
-        $this->actingAsForApi(User::factory()->checkinAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkinAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkin', $checkout))
             ->assertStatusMessageIs('success');
 

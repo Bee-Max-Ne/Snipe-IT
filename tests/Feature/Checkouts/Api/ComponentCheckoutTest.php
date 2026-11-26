@@ -18,14 +18,20 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
     {
         $component = Component::factory()->create();
 
-        $this->actingAsForApi(User::factory()->create())
+        /** @var User $actor */
+        $actor = User::factory()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.components.checkout', $component->id))
             ->assertForbidden();
     }
 
     public function test_cannot_checkout_non_existent_component()
     {
-        $this->actingAsForApi(User::factory()->checkoutComponents()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutComponents()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.components.checkout', 1000))
             ->assertOk()
             ->assertStatusMessageIs('error')
@@ -36,7 +42,10 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
     {
         $component = Component::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutComponents()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutComponents()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.components.checkout', $component->id), [
                 //
             ])
@@ -51,7 +60,10 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
         $asset = Asset::factory()->create();
         $component = Component::factory()->create(['qty' => 2]);
 
-        $this->actingAsForApi(User::factory()->checkoutComponents()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutComponents()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.components.checkout', $component->id), [
                 'assigned_to' => $asset->id,
                 'assigned_qty' => 3,
@@ -72,7 +84,10 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
             'asset_id' => $asset->id,
         ]);
 
-        $this->actingAsForApi(User::factory()->checkoutComponents()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutComponents()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.components.checkout', $component->id), [
                 'assigned_to' => $asset->id,
                 'assigned_qty' => 3,
@@ -83,6 +98,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
     public function test_can_checkout_component()
     {
+        /** @var User $user */
         $user = User::factory()->checkoutComponents()->create();
         $asset = Asset::factory()->create();
         $component = Component::factory()->create();
@@ -101,6 +117,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
     public function test_component_checkout_is_logged()
     {
+        /** @var User $user */
         $user = User::factory()->checkoutComponents()->create();
         $location = Location::factory()->create();
         $asset = Asset::factory()->create(['location_id' => $location->id]);
@@ -129,6 +146,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
+        /** @var User $userForCompanyA */
         $userForCompanyA = User::factory()->forCompany($companyA)->create();
         $assetForCompanyB = Asset::factory()->for($companyB)->create();
         $componentForCompanyB = Component::factory()->for($companyB)->create();
@@ -147,6 +165,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
+        /** @var User $userInCompanyA */
         $userInCompanyA = User::factory()->checkoutComponents()->forCompany($companyA)->create();
         $componentInCompanyA = Component::factory()->for($companyA)->create(['qty' => 1]);
         $assetInCompanyB = Asset::factory()->for($companyB)->create();
@@ -183,6 +202,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
+        /** @var User $superuser */
         $superuser = User::factory()->superuser()->withoutCompany()->create();
         $componentInCompanyA = Component::factory()->for($companyA)->create(['qty' => 1]);
         $assetInCompanyB = Asset::factory()->for($companyB)->create();
@@ -225,6 +245,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
     {
         $asset = Asset::factory()->create();
         $component = Component::factory()->create(['qty' => 1]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         // Drain via a direct pivot insert.

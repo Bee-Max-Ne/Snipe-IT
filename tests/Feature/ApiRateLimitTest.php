@@ -10,7 +10,10 @@ class ApiRateLimitTest extends TestCase
     public function test_rate_limit()
     {
         config(['app.api_throttle_per_minute' => 10]);
-        $this->actingAsForApi(User::factory()->create())
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $this->actingAsForApi($user)
             ->getJson(route('api.users.me'))
             ->assertOk()
             ->assertHeader('X-Ratelimit-Limit', config('app.api_throttle_per_minute'))
@@ -22,6 +25,7 @@ class ApiRateLimitTest extends TestCase
         $this->markTestSkipped('This test is flappy and keeps screwing up the test results.');
         config(['app.api_throttle_per_minute' => 5]);
         $expected_remaining = (config('app.api_throttle_per_minute') - 1);
+        /** @var User $admin */
         $admin = User::factory()->create();
 
         for ($x = 0; $x < 5; $x++) {
@@ -44,6 +48,7 @@ class ApiRateLimitTest extends TestCase
         $this->markTestSkipped('This test is flappy and keeps screwing up the test results.');
         config(['app.api_throttle_per_minute' => 80]);
         $expected_remaining = (config('app.api_throttle_per_minute') - 1);
+        /** @var User $admin */
         $admin = User::factory()->create();
 
         for ($x = 0; $x < 5; $x++) {

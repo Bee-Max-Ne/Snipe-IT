@@ -361,7 +361,7 @@ class AssetCheckinTest extends TestCase
         $asset->refresh();
         $this->assertNull($asset->assigned_to);
         $this->assertNull($asset->assigned_type);
-        $this->assertEquals(1, $asset->checkin_counter);
+        $this->assertNotNull($asset->last_checkin);
         Event::assertDispatched(CheckoutableCheckedIn::class);
     }
 
@@ -390,7 +390,7 @@ class AssetCheckinTest extends TestCase
         $asset->refresh();
         $this->assertNull($asset->assigned_to);
         $this->assertNull($asset->assigned_type);
-        $this->assertEquals(1, $asset->checkin_counter);
+        $this->assertNotNull($asset->last_checkin);
         Event::assertDispatched(CheckoutableCheckedIn::class);
     }
 

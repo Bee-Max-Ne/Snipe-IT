@@ -37,7 +37,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $targetUser = User::factory()->create();
         $targetUser->delete();
 
-        $this->actingAsForApi(User::factory()->superuser()->create())
+        /** @var User $actor */
+        $actor = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.asset.checkout', $asset), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => $targetUser->id,
@@ -56,7 +59,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $targetAsset = Asset::factory()->create();
         $targetAsset->delete();
 
-        $this->actingAsForApi(User::factory()->superuser()->create())
+        /** @var User $actor */
+        $actor = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.asset.checkout', $asset), [
                 'checkout_to_type' => 'asset',
                 'assigned_asset' => $targetAsset->id,
@@ -78,7 +84,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $targetLocation = Location::factory()->create();
         $targetLocation->delete();
 
-        $this->actingAsForApi(User::factory()->superuser()->create())
+        /** @var User $actor */
+        $actor = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.asset.checkout', $asset), [
                 'checkout_to_type' => 'location',
                 'assigned_location' => $targetLocation->id,
@@ -102,7 +111,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $target = User::factory()->create();
         $target->delete();
 
-        $this->actingAsForApi(User::factory()->checkoutConsumables()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutConsumables()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', $consumable), [
                 'assigned_to' => $target->id,
                 'checkout_qty' => 1,
@@ -125,7 +137,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $target = Asset::factory()->create();
         $target->delete();
 
-        $this->actingAsForApi(User::factory()->superuser()->create())
+        /** @var User $actor */
+        $actor = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.components.checkout', $component->id), [
                 'assigned_to' => $target->id,
                 'assigned_qty' => 1,
@@ -152,7 +167,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $target = User::factory()->create();
         $target->delete();
 
-        $this->actingAsForApi(User::factory()->superuser()->create())
+        /** @var User $actor */
+        $actor = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkout', $accessory), [
                 'assigned_user' => $target->id,
                 'checkout_to_type' => 'user',
@@ -176,7 +194,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $asset = Asset::factory()->create();
         $target = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->superuser()->create())
+        /** @var User $actor */
+        $actor = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.asset.checkout', $asset), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => $target->id,
@@ -195,7 +216,10 @@ class CheckoutToSoftDeletedTargetTest extends TestCase
         $consumable = Consumable::factory()->create();
         $target = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutConsumables()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutConsumables()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', $consumable), [
                 'assigned_to' => $target->id,
                 'checkout_qty' => 1,

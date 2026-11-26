@@ -20,14 +20,20 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
 
     public function test_requires_permission()
     {
-        $this->actingAsForApi(User::factory()->create())
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $this->actingAsForApi($user)
             ->postJson(route('api.accessories.checkout', Accessory::factory()->create()))
             ->assertForbidden();
     }
 
     public function test_validation_when_checking_out_accessory()
     {
-        $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $user */
+        $user = User::factory()->checkoutAccessories()->create();
+
+        $this->actingAsForApi($user)
             ->postJson(route('api.accessories.checkout', Accessory::factory()->create()), [
                 // missing assigned_user, assigned_location, assigned_asset
             ])
@@ -36,7 +42,10 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
 
     public function test_accessory_must_be_available_when_checking_out()
     {
-        $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $user */
+        $user = User::factory()->checkoutAccessories()->create();
+
+        $this->actingAsForApi($user)
             ->postJson(route('api.accessories.checkout', Accessory::factory()->withoutItemsRemaining()->create()), [
                 'assigned_user' => User::factory()->create()->id,
                 'checkout_to_type' => 'user',
@@ -67,6 +76,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
     {
         $accessory = Accessory::factory()->create();
         $user = User::factory()->create();
+        /** @var User $admin */
         $admin = User::factory()->checkoutAccessories()->create();
 
         $this->actingAsForApi($admin)
@@ -100,6 +110,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
     {
         $accessory = Accessory::factory()->create(['qty' => 20]);
         $user = User::factory()->create();
+        /** @var User $admin */
         $admin = User::factory()->checkoutAccessories()->create();
 
         $this->actingAsForApi($admin)
@@ -134,7 +145,10 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $accessory = Accessory::factory()->create();
         $user = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkout', $accessory), [
                 'assigned_user' => $user->id,
             ])
@@ -155,7 +169,10 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $accessory = Accessory::factory()->create();
         $asset = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkout', $accessory), [
                 'assigned_asset' => $asset->id,
             ])
@@ -176,7 +193,10 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $accessory = Accessory::factory()->create();
         $location = Location::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkout', $accessory), [
                 'assigned_location' => $location->id,
             ])
@@ -198,7 +218,10 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $user = User::factory()->create();
         $location = Location::factory()->create();
 
-        $response = $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutAccessories()->create();
+
+        $response = $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkout', $accessory), [
                 'assigned_user' => $user->id,
                 'assigned_location' => $location->id,
@@ -215,7 +238,10 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $accessory = Accessory::factory()->create();
         $user = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkout', $accessory), [
                 'assigned_user' => 'invalid-user-id',
                 'checkout_to_type' => 'user',
@@ -236,7 +262,10 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $accessory = Accessory::factory()->requiringAcceptance()->create();
         $user = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutAccessories()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutAccessories()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.accessories.checkout', $accessory), [
                 'assigned_user' => $user->id,
                 'checkout_to_type' => 'user',
@@ -250,6 +279,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
     public function test_action_log_created_upon_checkout()
     {
         $accessory = Accessory::factory()->create();
+        /** @var User $actor */
         $actor = User::factory()->checkoutAccessories()->create();
         $user = User::factory()->create();
 
@@ -283,6 +313,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
 
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
+        /** @var User $superuser */
         $superuser = User::factory()->superuser()->withoutCompany()->create();
         $accessoryInCompanyA = Accessory::factory()->for($companyA)->create(['qty' => 1]);
         $userInCompanyB = User::factory()->forCompany($companyB)->create();
@@ -322,6 +353,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $company = Company::factory()->create();
         $accessory = Accessory::factory()->for($company)->create(['qty' => 5]);
         $target = $company->users()->save(User::factory()->make());
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -343,6 +375,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
 
         $accessoryInA = Accessory::factory()->for($companyA)->create(['qty' => 5]);
         $accessoryInB = Accessory::factory()->for($companyB)->create(['qty' => 5]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -376,6 +409,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $company = Company::factory()->create();
         $accessory = Accessory::factory()->for($company)->create();
         $location = Location::factory()->create(['company_id' => $company->id]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -401,6 +435,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $company = Company::factory()->create();
         $accessory = Accessory::factory()->for($company)->create();
         $targetAsset = Asset::factory()->for($company)->create();
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -424,6 +459,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         [$companyA, $companyB] = Company::factory()->count(2)->create();
         $accessory = Accessory::factory()->for($companyA)->create();
         $locationInB = Location::factory()->create(['company_id' => $companyB->id]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->settings->enableScopedLocationsWithFullMultipleCompanySupport();
@@ -446,6 +482,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         [$companyA, $companyB] = Company::factory()->count(2)->create();
         $accessory = Accessory::factory()->for($companyA)->create();
         $assetInB = Asset::factory()->for($companyB)->create();
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -466,6 +503,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         [$companyA, $companyB] = Company::factory()->count(2)->create();
         $accessory = Accessory::factory()->for($companyA)->create();
         $locationInB = Location::factory()->create(['company_id' => $companyB->id]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -490,6 +528,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $child = Company::factory()->childOf($parent)->create();
         $accessory = Accessory::factory()->for($parent)->create();
         $locationInChild = Location::factory()->create(['company_id' => $child->id]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->settings->enableScopedLocationsWithFullMultipleCompanySupport();
@@ -517,6 +556,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
         $company = Company::factory()->create();
         $accessory = Accessory::factory()->for($company)->create();
         $locationWithNoCompany = Location::factory()->create(['company_id' => null]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -548,6 +588,7 @@ class AccessoryCheckoutTest extends TestCase implements TestsPermissionsRequirem
     {
         $target = User::factory()->create();
         $accessory = Accessory::factory()->create(['qty' => 1]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         \App\Models\AccessoryCheckout::create([

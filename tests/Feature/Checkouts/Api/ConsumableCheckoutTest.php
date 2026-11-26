@@ -14,14 +14,20 @@ class ConsumableCheckoutTest extends TestCase
 {
     public function test_checking_out_consumable_requires_correct_permission()
     {
-        $this->actingAsForApi(User::factory()->create())
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $this->actingAsForApi($user)
             ->postJson(route('api.consumables.checkout', Consumable::factory()->create()))
             ->assertForbidden();
     }
 
     public function test_validation_when_checking_out_consumable()
     {
-        $this->actingAsForApi(User::factory()->checkoutConsumables()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutConsumables()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', Consumable::factory()->create()), [
                 // missing assigned_to
             ])
@@ -30,7 +36,10 @@ class ConsumableCheckoutTest extends TestCase
 
     public function test_consumable_must_be_available_when_checking_out()
     {
-        $this->actingAsForApi(User::factory()->checkoutConsumables()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutConsumables()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', Consumable::factory()->withoutItemsRemaining()->create()), [
                 'assigned_to' => User::factory()->create()->id,
             ])
@@ -42,7 +51,10 @@ class ConsumableCheckoutTest extends TestCase
         $consumable = Consumable::factory()->create();
         $user = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutConsumables()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutConsumables()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', $consumable), [
                 'assigned_to' => $user->id,
             ]);
@@ -56,7 +68,10 @@ class ConsumableCheckoutTest extends TestCase
         $consumable = Consumable::factory()->create();
         $user = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutConsumables()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutConsumables()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', $consumable), [
                 'assigned_to' => $user->id,
                 'checkout_qty' => 2,
@@ -80,7 +95,10 @@ class ConsumableCheckoutTest extends TestCase
 
         $user = User::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutConsumables()->create())
+        /** @var User $actor */
+        $actor = User::factory()->checkoutConsumables()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', $consumable), [
                 'assigned_to' => $user->id,
             ]);
@@ -98,6 +116,7 @@ class ConsumableCheckoutTest extends TestCase
         // as their own creator. The action_logs stream separately recorded the
         // correct actor, which is why the pivot bug survived.
         $consumable = Consumable::factory()->create();
+        /** @var User $actor */
         $actor = User::factory()->checkoutConsumables()->create();
         $target = User::factory()->create();
 
@@ -123,6 +142,7 @@ class ConsumableCheckoutTest extends TestCase
     public function test_action_log_created_upon_checkout()
     {
         $consumable = Consumable::factory()->create();
+        /** @var User $actor */
         $actor = User::factory()->checkoutConsumables()->create();
         $user = User::factory()->create();
 
@@ -153,6 +173,7 @@ class ConsumableCheckoutTest extends TestCase
 
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
+        /** @var User $superuser */
         $superuser = User::factory()->superuser()->withoutCompany()->create();
         $consumableInCompanyA = Consumable::factory()->for($companyA)->create(['qty' => 1]);
         $userInCompanyB = User::factory()->forCompany($companyB)->create();
@@ -190,6 +211,7 @@ class ConsumableCheckoutTest extends TestCase
         $company = Company::factory()->create();
         $consumable = Consumable::factory()->for($company)->create(['qty' => 5]);
         $target = $company->users()->save(User::factory()->make());
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -210,6 +232,7 @@ class ConsumableCheckoutTest extends TestCase
 
         $consumableInA = Consumable::factory()->for($companyA)->create(['qty' => 5]);
         $consumableInB = Consumable::factory()->for($companyB)->create(['qty' => 5]);
+        /** @var User $actor */
         $actor = User::factory()->superuser()->create();
 
         $this->actingAsForApi($actor)
@@ -254,7 +277,10 @@ class ConsumableCheckoutTest extends TestCase
 
         $this->assertSame(0, $consumable->fresh()->numRemaining());
 
-        $this->actingAsForApi(User::factory()->superuser()->create())
+        /** @var User $actor */
+        $actor = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($actor)
             ->postJson(route('api.consumables.checkout', $consumable), [
                 'assigned_to' => $target->id,
                 'checkout_qty' => 1,
