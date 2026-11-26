@@ -13,11 +13,22 @@
     <testsuite name="Part4UnitSecurity">
       <file>./tests/Unit/UserTest.php</file>
       <file>./tests/Unit/CompanyScopingTest.php</file>
+      <file>./tests/Unit/Models/GroupPivotCleanupTest.php</file>
+      <file>./tests/Unit/Models/UserGroupPivotCleanupTest.php</file>
     </testsuite>
     <testsuite name="Part4FeatureIntegration">
-      <file>./tests/Feature/Users/SecurityPart4ApiIntegrationTest.php</file>
-      <file>./tests/Feature/Users/ImpersonateUserTest.php</file>
+      <directory>./tests/Feature/Users</directory>
+      <directory>./tests/Feature/Groups</directory>
+      <directory>./tests/Feature/Auth</directory>
+      <file>./tests/Feature/Reporting/ActivityReportPageAuthTest.php</file>
+      <file>./tests/Feature/Authentication/CheckUserIsActivatedApiTest.php</file>
+      <file>./tests/Feature/Authentication/EnforceApiTwoFactorEnrollmentTest.php</file>
+      <file>./tests/Feature/Authentication/LoginBackUrlSanitizationTest.php</file>
       <file>./tests/Feature/Authentication/LoginTest.php</file>
+      <file>./tests/Feature/Authentication/PersonalAccessTokenTwoFactorGuardTest.php</file>
+      <file>./tests/Feature/Authentication/SamlRelayStateSanitizationTest.php</file>
+      <file>./tests/Feature/Authentication/StorageProxyBypassesTwoFactorTest.php</file>
+      <file>./tests/Feature/Authentication/TwoFactorRateLimitTest.php</file>
     </testsuite>
   </testsuites>
   <php>

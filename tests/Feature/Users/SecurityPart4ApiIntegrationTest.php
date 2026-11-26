@@ -5,7 +5,10 @@ namespace Tests\Feature\Users;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
+use App\Models\Group;
+use App\Models\Location;
 use App\Models\User;
+use Google2FA;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -280,5 +283,228 @@ class SecurityPart4ApiIntegrationTest extends TestCase
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL
             );
         }
+    }
+
+    /**
+     * TC-SEC-API-07: Kiểm thử bảo mật xác thực 2 lớp (2FA Enrollment/Verification) và quy trình Logout trong LoginController.
+     */
+    public function test_tc_sec_api_07_login_controller_two_factor_and_logout_security_enforcement(): void
+    {
+        $user = User::factory()->create(['activated' => 1]);
+
+        // 1. Chưa đăng nhập truy cập 2FA routes đều phải bị đẩy về /login
+        $this->get(route('two-factor-enroll'))->assertRedirect(route('login'));
+        $this->get(route('two-factor'))->assertRedirect(route('login'));
+        $this->post(route('two-factor'), ['two_factor_secret' => '123456'])->assertRedirect(route('login'));
+
+        // 2. Đăng nhập nhưng chưa cài 2FA -> GET /two-factor đẩy sang /two-factor-enroll
+        $this->actingAs($user)
+            ->get(route('two-factor'))
+            ->assertRedirect(route('two-factor-enroll'));
+
+        // 3. Truy cập /two-factor-enroll sinh mã secret & QR code lưu vào user
+        $this->actingAs($user)
+            ->get(route('two-factor-enroll'))
+            ->assertOk()
+            ->assertViewIs('auth.two_factor_enroll');
+
+        $secret = $user->fresh()->two_factor_secret;
+        $this->assertNotEmpty($secret);
+
+        // 4. Bỏ trống hoặc nhập sai mã OTP -> không được gắn cờ session 2fa_authed
+        $this->actingAs($user)
+            ->post(route('two-factor'), ['two_factor_secret' => ''])
+            ->assertRedirect(route('two-factor'))
+            ->assertSessionHas('error');
+
+        $this->actingAs($user)
+            ->post(route('two-factor'), ['two_factor_secret' => '000000'])
+            ->assertRedirect(route('two-factor'))
+            ->assertSessionHas('error');
+        $this->assertFalse(session()->has('2fa_authed'));
+
+        // 5. Nhập đúng mã TOTP hợp lệ -> đánh dấu enrolled, ghi 2fa_authed vào session
+        $validCode = Google2FA::getCurrentOtp($secret);
+        $this->actingAs($user)
+            ->post(route('two-factor'), ['two_factor_secret' => $validCode])
+            ->assertRedirect(route('home'))
+            ->assertSessionHas('2fa_authed', $user->id);
+
+        // Đã enroll rồi mà quay lại trang enroll -> đẩy về two-factor
+        $this->actingAs($user->fresh())
+            ->get(route('two-factor-enroll'))
+            ->assertRedirect(route('two-factor'));
+
+        // 6. GET /logout khi không có phiên SAML SLO bắt buộc phải chặn 405 Method Not Allowed
+        $this->actingAs($user->fresh())
+            ->get(route('logout.get'))
+            ->assertStatus(405);
+
+        // 7. POST /logout hủy phiên, xóa 2fa_authed và chuyển về trạng thái guest
+        $this->actingAs($user->fresh())
+            ->withSession(['2fa_authed' => $user->id])
+            ->post(route('logout.post'))
+            ->assertRedirect(route('login'))
+            ->assertSessionMissing('2fa_authed');
+
+        $this->assertGuest();
+    }
+
+    /**
+     * TC-SEC-API-08: Kiểm thử phân quyền Api\UsersController trên /me, selectlist (FMCS), history, eulas và ldapsync.
+     */
+    public function test_tc_sec_api_08_users_api_self_selectlist_history_and_privileged_endpoints(): void
+    {
+        $this->settings->enableMultipleFullCompanySupport();
+
+        [$companyA, $companyB] = Company::factory()->count(2)->create();
+
+        $viewer = User::factory()->viewAssets()->forCompany($companyA)->create(['show_in_list' => 1]);
+        $sameCompanyPeer = User::factory()->forCompany($companyA)->create(['show_in_list' => 1, 'first_name' => 'PeerAlpha']);
+        $otherCompanyUser = User::factory()->forCompany($companyB)->create(['show_in_list' => 1, 'first_name' => 'PeerBeta']);
+        $adminA = User::factory()->admin()->viewUsers()->forCompany($companyA)->create();
+
+        // 1. /api/v1/users/me trả về đúng hồ sơ chủ token
+        $this->actingAsForApi($viewer)
+            ->getJson(route('api.users.me'))
+            ->assertOk()
+            ->assertJsonFragment(['id' => $viewer->id, 'username' => $viewer->username]);
+
+        // 2. /api/v1/users/selectlist cô lập nghiêm ngặt user Công ty B dưới FMCS
+        $selectResp = $this->actingAsForApi($adminA)
+            ->getJson(route('api.users.selectlist', ['companyId' => $companyA->id, 'excludeId' => $adminA->id]))
+            ->assertOk();
+
+        $selectIds = collect($selectResp->json('results'))->pluck('id')->all();
+        $this->assertContains($sameCompanyPeer->id, $selectIds);
+        $this->assertNotContains($adminA->id, $selectIds);
+        $this->assertNotContains($otherCompanyUser->id, $selectIds);
+
+        // 3. User thường bị chặn 403 trên ldapsync, history và eulas của người khác
+        $this->actingAsForApi($viewer)->postJson(route('api.users.ldapsync'))->assertForbidden();
+        $this->actingAsForApi($adminA)->postJson(route('api.users.ldapsync'))->assertForbidden();
+        $this->actingAsForApi($viewer)->getJson(route('api.users.history', $sameCompanyPeer))->assertForbidden();
+        $this->actingAsForApi($viewer)->getJson(route('api.user.eulas', $sameCompanyPeer))->assertForbidden();
+
+        // 4. Admin hợp lệ xem được history và eulas của nhân sự cùng công ty
+        Actionlog::create([
+            'item_type' => User::class,
+            'item_id' => $sameCompanyPeer->id,
+            'created_by' => $adminA->id,
+            'company_id' => $companyA->id,
+            'action_type' => 'updated',
+            'note' => 'Audit note from TC-SEC-API-08',
+        ]);
+        $this->actingAsForApi($adminA)->getJson(route('api.users.history', $sameCompanyPeer))->assertOk();
+        $this->actingAsForApi($adminA)->getJson(route('api.user.eulas', $sameCompanyPeer))->assertOk();
+    }
+
+    /**
+     * TC-SEC-API-09: Kiểm thử ma trận CompanyableTrait::canCheckoutTo() & effectiveFmcsCompanyId() cho Location, cha-con và Floater.
+     */
+    public function test_tc_sec_api_09_companyable_trait_checkout_matrix_for_locations_hierarchy_and_floater(): void
+    {
+        $parentCompany = Company::factory()->create(['name' => 'Parent Corp']);
+        $childCompany = Company::factory()->create(['name' => 'Child Corp', 'parent_id' => $parentCompany->id]);
+        $unrelatedCompany = Company::factory()->create(['name' => 'Unrelated Corp']);
+
+        $parentAsset = Asset::factory()->create(['company_id' => $parentCompany->id]);
+        $uncompaniedAsset = Asset::factory()->create(['company_id' => null]);
+
+        $childLocation = Location::factory()->create(['company_id' => $childCompany->id]);
+        $unrelatedLocation = Location::factory()->create(['company_id' => $unrelatedCompany->id]);
+        $uncompaniedLocation = Location::factory()->create(['company_id' => null]);
+        $unrelatedUser = User::factory()->forCompany($unrelatedCompany)->create();
+
+        // 1. Khi tắt FMCS: cho phép checkout không giới hạn
+        $this->settings->disableMultipleFullCompanySupport();
+        $this->assertTrue($parentAsset->canCheckoutTo($unrelatedLocation));
+        $this->assertSame($parentCompany->id, $parentAsset->effectiveFmcsCompanyId());
+        $this->assertNull($uncompaniedAsset->effectiveFmcsCompanyId());
+
+        // 2. Bật FMCS: kiểm tra nhánh Location khi tắt/bật scope_locations_fmcs và phân cấp cha-con
+        $this->settings->enableMultipleFullCompanySupport();
+        $this->settings->disableFloaterMode();
+        \App\Models\Setting::first()->update(['scope_locations_fmcs' => 0]);
+        $this->assertTrue($parentAsset->canCheckoutTo($unrelatedLocation));
+
+        $this->settings->enableScopedLocationsWithFullMultipleCompanySupport();
+        $this->assertTrue($parentAsset->canCheckoutTo($childLocation), 'Công ty mẹ phải checkout được tới Location của công ty con.');
+        $this->assertFalse($parentAsset->canCheckoutTo($unrelatedLocation), 'Cấm checkout tới Location của công ty khác.');
+        $this->assertFalse($parentAsset->canCheckoutTo($uncompaniedLocation), 'Tắt Floater: cấm checkout tài sản công ty tới Location trống.');
+        $this->assertFalse($uncompaniedAsset->canCheckoutTo($unrelatedUser), 'Tắt Floater: tài sản trống không checkout cho user đã gắn công ty.');
+        $this->assertFalse($uncompaniedAsset->canCheckoutTo($unrelatedLocation));
+
+        // 3. Bật Floater mode
+        $this->settings->enableFloaterMode();
+        $this->assertTrue($parentAsset->canCheckoutTo($uncompaniedLocation));
+        $this->assertTrue($uncompaniedAsset->canCheckoutTo($unrelatedLocation));
+    }
+
+    /**
+     * TC-SEC-API-10: Kiểm thử các Scope bảo mật/phân cấp của User và Actionlog (Group, SuperAdmins, Manager Hierarchy, Audit Relations).
+     */
+    public function test_tc_sec_api_10_user_security_scopes_hierarchy_and_actionlog_audit_queries(): void
+    {
+        $group = Group::factory()->create(['name' => 'Security Auditors']);
+        $superuser = User::factory()->superuser()->create();
+        $admin = User::factory()->admin()->create();
+        $manager = User::factory()->create(['username' => 'mgr_part4']);
+        $subordinate = User::factory()->create(['manager_id' => $manager->id, 'username' => 'sub_part4']);
+        $subordinate->groups()->attach($group->id);
+
+        // 1. User security query scopes
+        $superIds = User::onlySuperAdmins()->pluck('id')->all();
+        $adminAndSuperIds = User::onlyAdminsAndSuperAdmins()->pluck('id')->all();
+        $groupUserIds = User::byGroup($group->id)->pluck('id')->all();
+
+        $this->assertContains($superuser->id, $superIds);
+        $this->assertNotContains($admin->id, $superIds);
+        $this->assertContains($admin->id, $adminAndSuperIds);
+        $this->assertContains($subordinate->id, $groupUserIds);
+        $this->assertNotContains($admin->id, $groupUserIds);
+
+        // 2. Manager hierarchy & exact username matching
+        $this->assertTrue($manager->isManagerOf($subordinate));
+        $this->assertFalse($subordinate->isManagerOf($manager));
+        $this->assertContains($subordinate->id, $manager->getAllSubordinates()->pluck('id')->all());
+        $this->assertContains($manager->id, $manager->getAllSubordinatesIncludingSelf()->pluck('id')->all());
+        $this->assertSame($manager->id, User::verifyExactUsernameMatch($manager, 'MGR_PART4')?->id);
+        $this->assertNull(User::verifyExactUsernameMatch($manager, 'wrong_user'));
+        $this->assertNull(User::verifyExactUsernameMatch(null, 'mgr_part4'));
+
+        // 3. Actionlog audit scope & relationships
+        $company = Company::factory()->create();
+        $location = Location::factory()->create(['company_id' => $company->id]);
+        $asset = Asset::factory()->create(['company_id' => $company->id, 'name' => 'AuditScopeLaptop']);
+
+        $logEntry = Actionlog::forceCreate([
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+            'target_type' => User::class,
+            'target_id' => $subordinate->id,
+            'created_by' => $admin->id,
+            'company_id' => $company->id,
+            'location_id' => $location->id,
+            'action_type' => 'checkout',
+            'action_source' => 'api',
+            'note' => 'Security audit trace check',
+        ]);
+
+        $fetched = Actionlog::forApiHistory()->where('id', $logEntry->id)->first();
+        $this->assertNotNull($fetched);
+        $this->assertSame($asset->id, $fetched->item?->id);
+        $this->assertContains($company->id, $fetched->company->pluck('id')->all());
+        $this->assertSame($subordinate->id, $fetched->target?->id);
+        $this->assertSame($location->id, $fetched->location?->id);
+        $this->assertSame($admin->id, $fetched->adminuser?->id);
+
+        $searchHits = Actionlog::query()
+            ->where(function ($q) use ($logEntry) {
+                $logEntry->advancedTextSearch($q, ['sub_part4']);
+            })
+            ->pluck('id')
+            ->all();
+        $this->assertContains($logEntry->id, $searchHits);
     }
 }

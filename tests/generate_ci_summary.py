@@ -170,7 +170,9 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
 
     # Ngưỡng đánh giá động & trung thực (tính chi phí thực tế Docker MySQL 8.0.36 K16)
     is_k16_mysql = mysql_proof is not None
-    if total_tests > 30:
+    if total_tests > 300:
+        duration_limit = 1800.0 if is_k16_mysql else 240.0
+    elif total_tests > 30:
         duration_limit = 600.0 if is_k16_mysql else 90.0
     else:
         duration_limit = 300.0 if is_k16_mysql else 20.0
@@ -241,7 +243,7 @@ def generate_summary(log_path, output_summary_path, junit_path=None):
     markdown.append("---")
     markdown.append("\n## 2. ⏱️ Danh Sách Ca Kiểm Thử Trọng Tâm Phân Vùng 4 (`TC-SEC-*` & `TC-SEC-API-*`)")
     if other_count > 0:
-        markdown.append(f"> *(Ngoài **{len(sec_cases)} lần thực thi `TC-SEC-*` / `TC-SEC-API-*`**, suite còn chạy hồi quy **{other_count} tests** thuộc `UserTest`, `CompanyScopingTest`, `ImpersonateUserTest`, `LoginTest` — tổng cộng **{total_tests} tests / {total_assertions} assertions**.)*\n")
+        markdown.append(f"> *(Ngoài **{len(sec_cases)} lần thực thi `TC-SEC-*` / `TC-SEC-API-*`**, suite còn chạy hồi quy **{other_count} tests** thuộc `Unit` (`UserTest`, `CompanyScopingTest`, `GroupPivotCleanupTest`, `UserGroupPivotCleanupTest`) và `Feature` (`Users`, `Groups`, `Auth`, `Authentication`, `ActivityReportPageAuthTest`) — tổng cộng **{total_tests} tests / {total_assertions} assertions**.)*\n")
     markdown.append("\n| STT | Tên Ca Kiểm Thử | Assertions | Thời gian thực tế | Kết quả |")
     markdown.append("| :---: | :--- | :---: | :---: | :---: |")
 
