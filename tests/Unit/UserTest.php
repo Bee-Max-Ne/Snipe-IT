@@ -474,6 +474,7 @@ class UserTest extends TestCase
         // 1. Arrange: Chuẩn bị SuperUser, RegularUser (không quyền) và TargetUser
         $superUser = User::factory()->superuser()->create();
         $regularUser = User::factory()->create();
+        $viewerUser = User::factory()->viewUsers()->create();
         $targetUser = User::factory()->create();
 
         // 2. Act & Assert:
@@ -484,6 +485,10 @@ class UserTest extends TestCase
         // RegularUser không có quyền admin/users.delete bị chặn hoàn toàn
         $this->assertFalse(Gate::forUser($regularUser)->allows('create', User::class), 'LỖI AN NINH: RegularUser tự ý tạo được người dùng!');
         $this->assertFalse(Gate::forUser($regularUser)->allows('delete', $targetUser), 'LỖI AN NINH: RegularUser tự ý xóa được người dùng khác!');
+
+        // ViewerUser chỉ có quyền xem, bị chặn tạo và xóa người dùng
+        $this->assertFalse(Gate::forUser($viewerUser)->allows('create', User::class), 'LỖI AN NINH: ViewerUser tự ý tạo được người dùng!');
+        $this->assertFalse(Gate::forUser($viewerUser)->allows('delete', $targetUser), 'LỖI AN NINH: ViewerUser tự ý xóa được người dùng khác!');
     }
 
     /**

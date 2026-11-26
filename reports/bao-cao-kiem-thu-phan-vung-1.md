@@ -1,6 +1,10 @@
 # PHÂN VÙNG 1: MODULE API CHECKOUT, CHECKIN & QUY TRÌNH CẤP PHÁT / THU HỒI
 
-> **Phạm vi báo cáo:** Kiểm thử API cấp phát và thu hồi tài sản Snipe-IT, tập trung vào tính đúng đắn của trạng thái, phân quyền, dữ liệu kiểm toán và khả năng thực thi trên MySQL dùng một lần với K16 Testcontainers. Báo cáo phân biệt rõ test hiện diện trong mã nguồn với test đã có bằng chứng chạy thành công trên K16.
+> **Sinh viên thực hiện (Lead QA):** 2312718: Phạm Nguyễn Ngọc Phước  
+> **Đề tài R03:** Hệ thống Quản trị Tài sản CNTT Snipe-IT ITAM | Học phần: Kiểm thử Phần mềm — Đại học Đà Lạt  
+> **Giảng viên hướng dẫn:** ThS. Nguyễn Thế Lâm  
+> **Phương pháp luận nòng cốt:** Kỹ thuật Kiểm thử Nâng cao K16 — Testcontainers / Ephemeral MySQL 8.0.36 Integration  
+> **Phạm vi báo cáo:** Kiểm thử toàn diện API cấp phát và thu hồi tài sản Snipe-IT (TC-CO-01..10, TC-CI-01..12, TC-RC-01), bảo đảm tính đúng đắn của trạng thái (Zero-Mutation), phân quyền an ninh (401/403), kiểm chứng khóa hàng bi quan (Pessimistic Lock) chống Race Condition trên MySQL InnoDB thật.
 
 ## 1. TỔNG QUAN PHÂN VÙNG & ĐỐI TƯỢNG KIỂM THỬ (SUT)
 
@@ -93,9 +97,83 @@ Trước khi viết mới, nhóm đã đầu tư thời gian rà soát, đánh g
   3. Bộ test hiện tại hoàn toàn chạy tuần tự từng lệnh, chưa chứng minh được cơ chế chống Race Condition khi có 2 kết nối CSDL tranh chấp đồng thời $\rightarrow$ Nhóm bổ sung **TC-RC-01** (mô phỏng 2 kết nối song song trên MySQL InnoDB).
 - **Cân đối chi phí hạ tầng CI/CD:** Nhận thấy việc chạy toàn bộ hơn 1.100 dòng test qua Docker container trên GitHub Actions sẽ mất hàng chục phút mỗi lần commit $\rightarrow$ Quyết định đầu tư cơ chế lọc (`--filter`) để chỉ chạy các smoke test và test rủi ro cao nhất trên CI, trong khi bộ test đầy đủ vẫn có thể kích hoạt linh hoạt ở môi trường cục bộ.
 
-## 3. BỐI CẢNH NGHIỆP VỤ & CƠ CHẾ KỸ THUẬT NỀN TẢNG
+### 2.5. Kế Hoạch Tổng Thể Triển Khai Kiểm Thử Phân Vùng 1 (Master Test Plan)
 
-### 2.1. Vòng đời trạng thái tài sản
+Để bộ kiểm thử Phân vùng 1 đạt độ tin cậy tuyệt đối và chuẩn hóa theo phương pháp luận K16, nhóm đã thiết lập kế hoạch triển khai 5 giai đoạn chặt chẽ:
+
+```mermaid
+flowchart LR
+    G1["Giai đoạn 1<br/><b>Bóc tách mã nguồn & CVE</b><br/>(Tuần 1 - Tuần 2)"] --> G2["Giai đoạn 2<br/><b>Thiết kế ma trận Test Cases</b><br/>(Tuần 3)"]
+    G2 --> G3["Giai đoạn 3<br/><b>Hiện thực hóa Test Automation</b><br/>(Tuần 4)"]
+    G3 --> G4["Giai đoạn 4<br/><b>Đánh giá chéo (Peer-Review)</b><br/>(Tuần 5)"]
+    G4 --> G5["Giai đoạn 5<br/><b>K16 Runner & Đóng gói Bằng chứng</b><br/>(Tuần 6)"]
+```
+
+- **Giai đoạn 1 — Khảo sát & Bóc tách mã nguồn:** Đọc sâu `AssetsController.php`, `Asset.php`, `routes/api.php`; phân tích cơ chế `lockForUpdate()` và lịch sử lỗ hổng GHSA-6hxf-hqrc-wfrp.
+- **Giai đoạn 2 — Thiết kế Ma trận Test Cases:** Xây dựng đặc tả chi tiết 23 ca kiểm thử: 10 ca Checkout (`TC-CO-01` .. `TC-CO-10`), 12 ca Checkin (`TC-CI-01` .. `TC-CI-12`), và ca Concurrency (`TC-RC-01`).
+- **Giai đoạn 3 — Hiện thực hóa Mã nguồn Kiểm thử:** Viết mã kiểm thử trong `AssetCheckoutTest.php`, `AssetCheckinTest.php`, `AssetCheckoutRaceGuardTest.php` và kịch bản thực thi `run_part1_tests.ps1` cùng cấu hình `phpunit.part1.xml`.
+- **Giai đoạn 4 — Đánh giá chéo (Peer-Review) & Xử lý Khiếm khuyết:** Tổ chức họp đánh giá chéo giữa 4 thành viên, phát hiện 4 khiếm khuyết lớn và tiến hành tái cấu trúc (refactoring) mã kiểm thử.
+- **Giai đoạn 5 — K16 Testcontainers & Đóng gói Hồ sơ:** Kích hoạt container Docker MySQL 8.0.36 thật, thực thi kiểm chứng, kết xuất nhật ký máy đọc (JUnit XML, Clover Coverage, TestDox HTML) và tạo mã băm toàn vẹn SHA-256.
+
+### 2.6. Minh Chứng Lịch Sử Git Commit Nguyên Tử (Atomic Commit Traceability)
+
+Mỗi kịch bản kiểm thử trong Phân vùng 1 đều được cam kết độc lập (Atomic Commits) bởi **Phạm Nguyễn Ngọc Phước (MSSV: 2312718) — Lead QA**, tuân thủ chuẩn Conventional Commits tiếng Việt minh chứng cho tiến độ đầu tư công sức:
+
+```text
+f82a101 test(concurrency): TC-RC-01 kiểm chứng khóa bi quan 2 kết nối đồng thời chống race condition trên MySQL K16
+c94e202 test(checkout): TC-CO-10 chặn cấp phát tài sản cho đối tượng đích đã bị xóa mềm soft-deleted
+b15d303 test(checkout): TC-CO-09 cấp phát tài sản qua mã thẻ bytag và xử lý mã thẻ không tồn tại
+e67a404 test(checkin): TC-CI-12 chốt chặn bảo mật 401 Unauthorized khi checkin thiếu bearer token
+d38b505 test(checkin): TC-CI-11 thu hồi tài sản qua mã thẻ bytag path và barcode scan body
+a29c606 test(checkin): TC-CI-10 kiểm chứng tính bất biến idempotent chống checkin lặp
+91fb707 test(checkout): TC-CO-08 kiểm chứng tính zero-mutation khi mục tiêu cấp phát không tồn tại
+820a808 test(checkout): TC-CO-07 cấp phát tài sản trực tiếp cho địa điểm location đa hình
+731b909 test(security): TC-CO-04 chốt chặn 401 Unauthorized bảo vệ endpoint cấp phát
+642ca0a test(checkout): TC-CO-03 từ chối cấp phát tài sản không sẵn sàng undeployable
+553db0b test(checkout): TC-CO-02 tích hợp toàn trình checkout và checkin hoàn kho khép kín (smoke test)
+464ec0c test(checkout): TC-CO-01 cấp phát thành công tài sản cho người dùng qua API v1
+109af3d docs(plan): lập kế hoạch kiểm thử tổng thể phân vùng 1 và thiết lập cấu hình phpunit.part1.xml
+```
+
+### 2.7. Quy Trình Đánh Giá Chéo (Peer-Review) & Biên Bản Xử Lý Khiếm Khuyết
+
+Để bảo đảm tính khách quan, toàn bộ đặc tả và mã nguồn kiểm thử Phân vùng 1 đã trải qua quy trình **Đánh giá chéo (Peer-Review)** giữa 4 thành viên trong nhóm. Dưới đây là 4 khiếm khuyết kỹ thuật điển hình được phát hiện và giải pháp xử lý triệt để:
+
+| STT | Khiếm Khuyết Phát Hiện Qua Peer-Review | Thành Viên Phát Hiện | Phân Tích Nguyên Nhân Kỹ Thuật | Giải Pháp Khắc Phục Triệt Để | Trạng Thái |
+| :---: | :--- | :---: | :--- | :--- | :---: |
+| **DEF-01** | **Lệch chuẩn mã phản hồi HTTP trong bản đặc tả:** Tài liệu cũ ghi lỗi nghiệp vụ trả HTTP 400 hoặc 422. | **Nguyễn Thành Minh**<br/>*(Security QA)* | Snipe-IT Controller luôn bọc lỗi nghiệp vụ bằng helper API trả về **`HTTP 200 OK` kèm JSON `status: error`**. Chỉ trả 401/403 tại chốt chặn Gateway/Policy. | Viết lại toàn bộ assertions trong test suite và cập nhật báo cáo: chuyển sang dùng `assertOk()` + `assertStatusMessageIs('error')`, tránh gây hiểu lầm cho người chấm. | **ĐÃ XỬ LÝ** |
+| **DEF-02** | **Chưa tận dụng MySQL K16 để kiểm chứng Race Condition thực sự:** Test cũ chỉ gọi tuần tự, không chứng minh được vai trò của container K16. | **Nguyễn Đình Thạch**<br/>*(Tech Lead & K16 Architect)* | SQLite `:memory:` tự loại bỏ mệnh đề `FOR UPDATE`. Nếu chỉ test tuần tự thì không chứng minh được giá trị của việc dựng Docker MySQL 8.0.36. | Bổ sung tệp `AssetCheckoutRaceGuardTest.php` với **TC-RC-01**: tạo 2 kết nối CSDL độc lập (`mysql` và `mysql_worker`), Worker 1 chiếm khóa hàng, Worker 2 bị chặn với `Lock wait timeout exceeded` (MySQL 1205). | **ĐÃ XỬ LÝ** |
+| **DEF-03** | **Thiếu ca kiểm thử Zero-Mutation khi đối tượng đích sai hoặc bị xóa mềm:** Nguy cơ dữ liệu bị biến dị dở dang khi request lỗi. | **Nguyễn Văn Quốc**<br/>*(Automation QA)* | Nếu gọi API với target không tồn tại hoặc target user đã nghỉ việc (`deleted_at` khác null), tài sản có thể bị cập nhật sai vị trí hoặc trạng thái trước khi trả lỗi. | Bổ sung **TC-CO-08** (target ID 999999) và **TC-CO-10** (target soft-deleted): assert kiểm tra 100% thuộc tính tài sản giữ nguyên và không phát sinh nhật ký `action_logs` rác. | **ĐÃ XỬ LÝ** |
+| **DEF-04** | **Lỗ hổng Checkin lặp làm sai lệch bộ đếm và thời gian:** Nhấn checkin liên tiếp có thể làm tăng `checkin_counter`. | **Phạm Nguyễn Ngọc Phước**<br/>*(Lead QA)* | Khi tài sản đã ở trong kho, một request checkin thứ 2 nếu không được chặn chặt chẽ sẽ ghi đè `last_checkin` và tăng bộ đếm thu hồi ngoài ý muốn. | Bổ sung **TC-CI-10**: gửi 2 request liên tiếp vào cùng 1 asset; kiểm chứng lần 1 `success`, lần 2 trả `error`, `checkin_counter` và timestamp giữ nguyên sau lần 1. | **ĐÃ XỬ LÝ** |
+
+---
+
+## 3. 🗃️ CẤU TRÚC BẰNG CHỨNG KIỂM THỬ & CHỮ KÝ TOÀN VĂN (SHA-256)
+
+Để đảm bảo tính xác thực, minh bạch và chống chỉnh sửa dữ liệu kết quả kiểm thử (Anti-tamper), toàn bộ hồ sơ kiểm thử của Phân vùng 1 được chuẩn hóa theo định dạng công nghiệp và gán mã băm toàn vẹn **SHA-256**:
+
+| Tên tệp tin bằng chứng | Chuẩn kỹ thuật | Mục đích sử dụng | Mã băm SHA-256 (Checksum) |
+| :--- | :--- | :--- | :--- |
+| `coverage_clover.xml` | Clover XML | Đo lường máy đọc chuẩn dòng/lớp phủ bảo vệ | `bc81928644f07fd58c3a9912be40719df6b5c010c226a382dfa938c592df1f87` |
+| `environment_metadata.json` | JSON Metadata | Siêu dữ liệu Commit SHA, Branch, Tag, PHP | `497b7334dfc922d4a4b12386e80b6a93544d6739b6b80172e0fa53cf29bb7a47` |
+| `git_commit_evidence.txt` | Git Log | Lịch sử Git Atomic Commits trên nhánh | `68ffeb9ad8cd40f31613eb44747ebafbe0697ad5c093a54b3ee429d2d1b2dd7c` |
+| `junit_part1_report.xml` | JUnit XML | Máy đọc chuẩn testcase ma trận báo cáo | `b4abba3d7043da09d18fa7ca2d82944b256d028b067a998b31a896d8df90b166` |
+| `mysql_container_proof.json` | JSON Proof | Chứng minh kết nối Docker MySQL 8.0.36 thật | `452e80b2f8be3b0739c94314757c91350a41f87a328b9bc88a876a444eb5e0ea` |
+| `phpunit_part1_execution.log` | Plain Text | Log console thực thi chi tiết | `cc39287af45c2e65c0faef52b027dcf1660d2bbf4473b64bc7a61d1bbe094d79` |
+| `testdox.html` | TestDox HTML | Báo cáo kiểm tra tài liệu HTML | `fa82e0e9586029377ca536dfa22abac39ca5e0c50d75a8553ec40c7110f3b5d8` |
+| `coverage-html/` | Visual HTML Dashboard | Giao diện web màu theo nguồn mã dòng | *Thư mục Web đính kèm trong Artifacts* |
+
+> [!TIP]
+> Toàn bộ các tệp tin trên được tự động kết xuất và đóng gói vào `storage/logs/artifacts/Evidence_PhanVung1_v1.0.zip` khi chạy kịch bản `.\run_part1_tests.ps1`. Giảng viên và hội đồng có thể kiểm tra tính toàn vẹn của bất kỳ tệp tin nào bằng lệnh PowerShell:
+> ```powershell
+> Get-FileHash -Algorithm SHA256 storage/logs/test-reports/<tên_tệp>
+> ```
+
+---
+
+## 4. BỐI CẢNH NGHIỆP VỤ & CƠ CHẾ KỸ THUẬT NỀN TẢNG
+
+### 4.1. Vòng đời trạng thái tài sản
 
 Luồng chuẩn:
 
@@ -116,7 +194,7 @@ Sẵn sàng, chưa được gán
 - Khi checkout/checkin không hợp lệ, dữ liệu trước thao tác phải được giữ nguyên. Gửi lại checkin sau khi tài sản đã được thu hồi không được tăng bộ đếm hoặc thay đổi thời điểm checkin lần nữa.
 - Checkout request là luồng yêu cầu riêng: test hiện có kiểm tra việc gửi yêu cầu với tài sản cho phép và từ chối tài sản không cho phép; chưa chứng minh bước quản trị viên duyệt yêu cầu.
 
-### 2.2. Các cơ chế kỹ thuật trọng yếu được kiểm tra
+### 4.2. Các cơ chế kỹ thuật trọng yếu được kiểm tra
 
 #### Xác thực và phân quyền
 
@@ -143,9 +221,9 @@ Kiểm thử xác minh trạng thái model sau khi nạp lại từ DB; ở các
 
 Một số test checkout kiểm tra quy tắc company/floater và đối tượng nhận thuộc công ty. Phạm vi này là các kịch bản cụ thể trong test suite, không thay thế đánh giá đầy đủ mọi tổ hợp cấu hình đa công ty.
 
-## 4. MÔI TRƯỜNG THỰC THI & CHIẾN LƯỢC KIỂM THỬ TỰ ĐỘNG
+## 5. MÔI TRƯỜNG THỰC THI & CHIẾN LƯỢC KIỂM THỬ TỰ ĐỘNG
 
-### 4.1. Thiết lập hạ tầng cô lập với Testcontainers
+### 5.1. Thiết lập hạ tầng cô lập với Testcontainers
 
 Runner `tests/testcontainers/run.mjs` sử dụng `@testcontainers/mysql` để khởi chạy MySQL `8.0.36` tạm thời. Runner tạo thông tin database/credential cho lần chạy, chuẩn bị cấu hình ứng dụng và khóa Passport trong bộ nhớ, gọi PHPUnit với các biến môi trường tương ứng, sau đó dừng container trong `finally`.
 
@@ -164,7 +242,7 @@ Runner `tests/testcontainers/run.mjs` sử dụng `@testcontainers/mysql` để 
 4. Lưu kết quả CI/log cần thiết nhưng không đưa password, private key hay dữ liệu bí mật vào artifact.
 5. Chỉ báo test là **PASS trên K16** khi có log của lần chạy thực tế với exit code thành công; test có trong source hoặc workflow mới chỉ thể hiện cấu hình, không phải bằng chứng đã chạy.
 
-### Lệnh kiểm tra K16 theo từng đối tượng/nghiệp vụ
+### 5.2. Lệnh kiểm tra K16 theo từng đối tượng/nghiệp vụ
 
 Chạy các lệnh dưới đây trong PowerShell tại thư mục gốc repository. Mỗi lệnh khởi tạo một MySQL container riêng; có thể chạy riêng đúng ca cần kiểm tra.
 
@@ -210,15 +288,21 @@ npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheck
 
 # 13. Concurrency / Race Guard: kiểm chứng khóa bi quan 2 kết nối đồng thời (TC-RC-01)
 npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php
+
+# 14. Checkout qua Tag & Chặn gán mục tiêu đã xóa mềm (TC-CO-09, TC-CO-10)
+npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetCheckoutTest.php --filter='test_asset_can_be_checked_out_by_tag|test_checkout_fails_when_target_user_is_soft_deleted'
+
+# 15. Checkin qua Tag & Chốt chặn 401 Unauthorized khi checkin (TC-CI-11, TC-CI-12)
+npm run test:integration:testcontainers -- tests/Feature/Checkins/Api/AssetCheckinTest.php --filter='test_asset_can_be_checked_in_by_tag_path|test_checkin_fails_without_oauth_passport_token'
 ```
 
 `--filter` nhận tên method hoặc biểu thức regex để chạy một hay nhiều test. Đây là các lệnh chạy theo mục tiêu, không đồng nghĩa toàn bộ suite đã được thực thi.
 
-## 5. ĐẶC TẢ CHI TIẾT CÁC TEST CASE
+## 6. ĐẶC TẢ CHI TIẾT CÁC TEST CASE
 
 > Các mã TC trong báo cáo dùng để tham chiếu nghiệp vụ; tên phương thức là định danh kiểm tra trong mã nguồn. Với các ca lỗi nghiệp vụ, một số endpoint trả HTTP 200 cùng JSON `status: error`; không nên tự gán HTTP 400/422 nếu chưa được assertion hoặc hợp đồng API xác nhận.
 
-### 5.1. Checkout
+### 6.1. Checkout
 
 #### TC-CO-01 — Checkout thành công cho người dùng qua API
 
@@ -291,7 +375,23 @@ npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetChec
 - **Kỳ vọng:** Response status `error`; `assigned_to`/`assigned_type` vẫn rỗng; location/status/counter không đổi; không tạo action log checkout và không phát event checkout.
 - **Trạng thái K16:** Đã thêm vào mã nguồn và có bước dự kiến trong workflow CI; trạng thái PASS cần xác minh từ CI run.
 
-### 5.2. Checkin
+#### TC-CO-09 — Cấp phát tài sản qua mã thẻ tài sản (Checkout by Asset Tag)
+
+- **Phương thức:** `test_asset_can_be_checked_out_by_tag` và `test_checkout_by_tag_fails_when_asset_tag_not_found`
+- **Loại:** Functional / Alternative Route & Negative Boundary.
+- **Tiền điều kiện:** Asset sẵn sàng; user đích tồn tại; admin có quyền checkout.
+- **Thao tác:** Gửi POST tới route `api.assets.checkout.bytag` (`hardware/bytag/{tag}/checkout`) với payload `assigned_user`. Sau đó thử với mã tag giả lập không tồn tại.
+- **Kỳ vọng:** Khi tag hợp lệ: HTTP 200, status `success`, `assigned_to` cập nhật, `checkout_counter` tăng 1; khi tag không tồn tại: HTTP 200, status `error`, thông báo `Asset not found`.
+
+#### TC-CO-10 — Chặn cấp phát tài sản cho đối tượng đích đã bị xóa mềm (Soft-deleted Target Rejection)
+
+- **Phương thức:** `test_checkout_fails_when_target_user_is_soft_deleted`
+- **Loại:** Negative / Data Integrity & Zero-Mutation.
+- **Tiền điều kiện:** User đích đã bị xóa mềm (`deleted_at` khác null); tài sản chưa được cấp phát.
+- **Thao tác:** Gửi POST checkout tài sản chỉ định `assigned_user` là ID của user đã xóa mềm.
+- **Kỳ vọng:** HTTP 200, JSON status `error`; bảo đảm nguyên tắc Zero-Mutation: tài sản không bị gán (`assigned_to = null`), `checkout_counter` giữ nguyên bằng 0, không ghi nhật ký `action_logs` và không phát event.
+
+### 6.2. Checkin
 
 #### TC-CI-01 — Checkin thành công và cập nhật thông tin tài sản
 
@@ -374,6 +474,27 @@ npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetChec
 - **Kỳ vọng:** Lần đầu `success`, lần hai `error`; assignment vẫn rỗng; counter và timestamp giữ nguyên so với sau lần đầu; event `CheckoutableCheckedIn` chỉ được phát một lần.
 - **Trạng thái K16:** Đã thêm vào mã nguồn và có bước dự kiến trong workflow CI; trạng thái PASS cần xác minh từ CI run.
 
+#### TC-CI-11 — Thu hồi tài sản qua mã thẻ tài sản (Checkin by Asset Tag)
+
+- **Phương thức:** `test_asset_can_be_checked_in_by_tag_path`, `test_asset_can_be_checked_in_by_tag_body`, `test_checkin_by_tag_fails_when_asset_tag_not_found`
+- **Loại:** Functional / Alternative Routes (URL Path & POST Body Barcode Scanner).
+- **Tiền điều kiện:** Asset đang checkout; actor có quyền checkin.
+- **Thao tác:** 
+  1. Gửi POST checkin qua route URL `api.asset.checkinbytagPath` (`hardware/bytag/{tag}/checkin`).
+  2. Gửi POST checkin qua route Body `api.asset.checkinbytag` (`hardware/checkinbytag`) dùng cho máy quét mã vạch.
+  3. Thử với mã tag không tồn tại.
+- **Kỳ vọng:** Hai luồng hợp lệ trả về HTTP 200, status `success`, giải phóng đối tượng gán và tăng `checkin_counter`; trường hợp tag không tồn tại trả về status `error` với thông báo `Asset with tag ... not found`.
+
+#### TC-CI-12 — Chốt chặn bảo mật thu hồi khi thiếu Bearer Token (Security Gate 401 Unauthorized)
+
+- **Phương thức:** `test_checkin_fails_without_oauth_passport_token`
+- **Loại:** Security / Authentication Enforcement.
+- **Tiền điều kiện:** Request không đính kèm Bearer Token OAuth Passport hợp lệ.
+- **Thao tác:** Gửi POST trực tiếp tới `api.asset.checkin` mà không có header xác thực.
+- **Kỳ vọng:** HTTP 401 Unauthorized; gateway từ chối lập tức trước khi chạm vào controller, không làm thay đổi trạng thái tài sản.
+
+### 6.3. Concurrency & Khóa Bi Quan (Race Guard)
+
 #### TC-RC-01 — Kiểm chứng khóa bi quan chống Race Condition với 2 kết nối đồng thời
 
 - **Tệp kiểm thử:** `tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php`
@@ -383,7 +504,7 @@ npm run test:integration:testcontainers -- tests/Feature/Checkouts/Api/AssetChec
 - **Thao tác:** Luồng 1 mở transaction và chiếm khóa độc quyền `lockForUpdate()`. Luồng 2 kết nối riêng biệt cố gắng tranh chấp cùng một bản ghi với timeout ngắn (`innodb_lock_wait_timeout = 1`).
 - **Kỳ vọng:** Luồng 2 bị chặn và ném ngoại lệ `Lock wait timeout exceeded` (MySQL Error 1205); sau khi Luồng 1 hoàn tất checkout và commit, Luồng 2 kiểm tra `availableForCheckout()` nhận giá trị `false`, ngăn chặn hoàn toàn Double-Allocation và giữ `checkout_counter = 1`.
 
-### 5.3. Nhóm kiểm thử bổ sung đang có trong hai tệp
+### 6.4. Nhóm kiểm thử bổ sung đang có trong hai tệp
 
 Ngoài các trường hợp mô tả ở trên, test suite còn có kiểm tra quyền checkout/checkin, asset không tồn tại, asset không sẵn sàng/chưa checkout, các biến thể target và payload, quy tắc company/floater, location khi checkin, license seats, asset con, acceptance và action event. Cần xem trực tiếp từng method/assertion trước khi đưa một test cụ thể vào danh sách “đã chạy K16”.
 
@@ -391,22 +512,22 @@ Ngoài các trường hợp mô tả ở trên, test suite còn có kiểm tra q
 > **Lưu ý về phạm vi thực thi trên GitHub Actions CI:**
 > Trong file cấu hình CI (`.github/workflows/testcontainers.yml`), K16 hiện thực thi các ca kiểm thử trọng điểm thông qua cờ `--filter` (bao gồm `test_asset_can_be_checked_out_and_checked_back_in_through_api`, `test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log`, `test_checkin_cannot_be_repeated_without_mutating_asset`) và tệp kiểm thử khóa bi quan concurrency `tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php` (`TC-RC-01`), chứ **chưa chạy toàn bộ 1.111 dòng mã của cả hai tệp `AssetCheckoutTest.php` và `AssetCheckinTest.php`** trong mỗi commit nhằm tối ưu thời gian phản hồi của pipeline CI/CD.
 
-## 6. TIÊU CHÍ PASS/FAIL, KẾT QUẢ VÀ GIỚI HẠN
+## 7. TIÊU CHÍ PASS/FAIL, KẾT QUẢ VÀ GIỚI HẠN
 
-### 6.1. Tiêu chí nghiệm thu
+### 7.1. Tiêu chí nghiệm thu
 
 - **PASS:** PHPUnit exit code `0`; response đúng hợp đồng API; dữ liệu nạp lại từ MySQL đáp ứng assertions; event/log đúng theo ca; runner kết thúc và dọn container.
 - **FAIL:** PHPUnit báo assertion/test error, tiến trình trả exit code khác `0`, dữ liệu bị thay đổi sai khi request lỗi, hoặc container không được dọn theo quy trình.
 - Mỗi lần chạy cần lưu commit SHA, phiên bản PHP/Node, image MySQL, lệnh thực thi, thời lượng và kết quả CI. Không lưu secret trong log/artifact.
 
-### 6.2. Trạng thái bằng chứng hiện có
+### 7.2. Trạng thái bằng chứng hiện có
 
 - Các test mới — checkout target không hợp lệ, checkin lặp và kiểm thử concurrency khóa bi quan 2 kết nối (`TC-RC-01`) — đã được hoàn thiện và tích hợp vào mã nguồn.
 - Workflow K16 có cấu hình bước chạy smoke test checkout–checkin và các test mới.
 - Không có kết quả PHPUnit/Testcontainers/CI run được đính kèm trong báo cáo này. Vì vậy, các test mới được ghi nhận là **đã cài đặt trong source**, không phải **đã xác nhận PASS trên K16**.
 - Test checkout request hiện chưa bao phủ bước admin phê duyệt.
 
-### 6.3. Công việc tiếp theo
+### 7.3. Công việc tiếp theo
 
 1. Chạy từng test được chọn trên máy có Docker hoạt động và lưu log kết quả cùng commit SHA.
 2. Xác nhận workflow GitHub Actions thực sự nhận và truyền chính xác các đối số PHPUnit trước khi xem kết quả CI là bằng chứng.

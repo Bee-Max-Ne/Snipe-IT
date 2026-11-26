@@ -9,20 +9,18 @@ use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 /**
- * Regression coverage for the concurrent-checkout race reported on
- * 2026-08-02. Api\AssetsController::checkout() checked availableForCheckout
- * outside its transaction, then called Asset::checkOut() inside the
- * transaction with no row lock and no re-check. Two racing requests could
- * both see the asset as available, both invoke checkOut(), and land
- * duplicate checkout-history rows plus a doubled checkout_counter.
- *
- * The fix moves the availability re-check inside the transaction with
- * lockForUpdate on the asset row, mirroring the ConsumablesController
- * pattern from GHSA-x4g2-87xc-m5jm. This test cannot simulate two truly
- * concurrent HTTP requests in phpunit, but it pins the behavioral
- * consequence: an asset that has already been assigned mid-flight cannot
- * be checked out a second time. Any refactor that removes the lock or the
- * availability re-check would need to preserve this observable behavior.
+ * ==============================================================================
+ * BỘ KIỂM THỬ KHÓA BI QUAN & TRANH CHẤP ĐỒNG THỜI (RACE GUARD CONCURRENCY TEST)
+ * Phân vùng: Phân vùng 1 — Module API Checkout / Checkin & Cấp phát / Thu hồi
+ * Do: 2312718: Phạm Nguyễn Ngọc Phước (Lead QA - Nhóm 05)
+ * Kỹ thuật trọng tâm: K16 Testcontainers (Docker MySQL 8.0.36 Ephemeral Container)
+ * 
+ * Mục tiêu an ninh & toàn vẹn dữ liệu:
+ * Kiểm chứng cơ chế khóa hàng bi quan (Pessimistic Row-level Locking: SELECT ... FOR UPDATE)
+ * kết hợp giao dịch CSDL (DB::transaction) nhằm ngăn chặn triệt để lỗi cấp phát trùng
+ * (Double-Allocation Race Condition) khi có 2 luồng/kết nối đồng thời gọi API cấp phát
+ * cho cùng 1 tài sản. SQLite không hỗ trợ tính năng này, bắt buộc phải dùng MySQL thật K16.
+ * ==============================================================================
  */
 class AssetCheckoutRaceGuardTest extends TestCase
 {
@@ -33,6 +31,12 @@ class AssetCheckoutRaceGuardTest extends TestCase
         Event::fake([CheckoutableCheckedOut::class]);
     }
 
+    /**
+     * Kịch bản: Cấp phát lần hai cho tài sản đã được gán giữa chừng không làm tăng bộ đếm
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Loại kiểm thử: Regression Testing / Race Condition Prevention
+     */
     public function test_second_checkout_of_already_assigned_asset_does_not_increment_counter()
     {
         $firstTarget = User::factory()->create();
@@ -46,10 +50,16 @@ class AssetCheckoutRaceGuardTest extends TestCase
             ->assertStatusMessageIs('error');
 
         $asset->refresh();
-        $this->assertSame(1, (int) $asset->checkout_counter, 'checkout_counter must not increment when checkout is refused');
-        $this->assertSame($firstTarget->id, (int) $asset->assigned_to, 'existing assignment must remain intact');
+        $this->assertSame(1, (int) $asset->checkout_counter, 'Bộ đếm checkout_counter không được phép tăng khi request bị từ chối');
+        $this->assertSame($firstTarget->id, (int) $asset->assigned_to, 'Đối tượng gán ban đầu phải được giữ nguyên vẹn');
     }
 
+    /**
+     * Kịch bản: Cấp phát lần hai cho tài sản đã được gán không được phát sự kiện CheckoutableCheckedOut
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Loại kiểm thử: Event Integrity / Side-effect Suppression
+     */
     public function test_second_checkout_of_already_assigned_asset_does_not_fire_checkout_event()
     {
         $firstTarget = User::factory()->create();
@@ -62,22 +72,24 @@ class AssetCheckoutRaceGuardTest extends TestCase
             ])
             ->assertStatusMessageIs('error');
 
-        // A racing second checkout that slipped past both the outer and the
-        // locked re-check would fire CheckoutableCheckedOut and generate a
-        // history row + counter bump via the CheckoutableListener chain.
-        // Asserting the event never fires is a proxy for asserting no
-        // downstream side-effects occurred.
+        // Một request checkout thứ hai nếu lọt qua chốt kiểm tra sẽ kích hoạt sự kiện CheckoutableCheckedOut
+        // và tạo ra bản ghi lịch sử cùng tăng counter không mong muốn.
+        // Khẳng định sự kiện không phát sinh nhằm chứng minh không có tác dụng phụ nào xảy ra.
         Event::assertNotDispatched(CheckoutableCheckedOut::class);
     }
 
     /**
-     * K16 TESTCONTAINERS CONCURRENCY: Kiểm chứng câu lệnh SELECT ... FOR UPDATE
-     * được phát ra bên trong transaction trên MySQL thật khi checkout.
+     * TC-RC-01B: KIỂM CHỨNG CÂU LỆNH SELECT ... FOR UPDATE PHÁT RA TRONG GIAO DỊCH MYSQL
+     * Phân vùng: Phân vùng 1 — Khóa bi quan Concurrency
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Kỹ thuật: SQL Query Audit trên MySQL thật K16 Testcontainers
+     * Mục tiêu: Soi vết nhật ký truy vấn để chứng minh mệnh đề khóa độc quyền hàng (X-Lock)
+     * được thực thi bên trong transaction khi gọi endpoint cấp phát tài sản.
      */
     public function test_checkout_issues_pessimistic_row_lock_inside_transaction()
     {
         if (config('database.default') !== 'mysql') {
-            $this->markTestSkipped('SELECT ... FOR UPDATE clause is only preserved and observed on MySQL/MariaDB.');
+            $this->markTestSkipped('Mệnh đề SELECT ... FOR UPDATE chỉ được hỗ trợ và duy trì trên Storage Engine MySQL/MariaDB.');
         }
 
         $asset = Asset::factory()->create();
@@ -105,18 +117,27 @@ class AssetCheckoutRaceGuardTest extends TestCase
 
         $this->assertNotNull(
             $selectForUpdate,
-            'api.asset.checkout must issue a SELECT ... FOR UPDATE on the assets row to serialize concurrent checkout requests.'
+            'api.asset.checkout bắt buộc phải phát ra câu lệnh SELECT ... FOR UPDATE trên hàng assets để tuần tự hóa các request đồng thời.'
         );
     }
 
     /**
-     * K16 TESTCONTAINERS CONCURRENCY: Mô phỏng 2 luồng / kết nối đồng thời tranh chấp 1 tài sản.
-     * Chứng minh InnoDB khóa hàng bi quan (Row-level Lock) chặn đứng luồng 2 và ngăn Double-Allocation.
+     * TC-RC-01: MÔ PHỎNG 2 KẾT NỐI SONG SONG ĐỘC LẬP TRANH CHẤP CÙNG 1 TÀI SẢN
+     * Phân vùng: Phân vùng 1 — Concurrency Race Guard
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Kỹ thuật: Mô phỏng 2 tiến trình độc lập (Worker 1 và Worker 2) trên MySQL InnoDB K16
+     * 
+     * Kịch bản mô phỏng:
+     * - Luồng 1 (Worker 1) mở transaction và chiếm khóa hàng độc quyền (X-Lock: lockForUpdate).
+     * - Luồng 2 (Worker 2) kết nối riêng biệt (mysql_worker) cố gắng tranh chấp cùng 1 bản ghi asset.
+     * - Kỳ vọng: MySQL InnoDB chặn đứng Luồng 2, ném ngoại lệ Timeout (MySQL Error 1205).
+     *   Sau khi Luồng 1 hoàn tất checkout và commit, Luồng 2 đọc lại trạng thái tài sản nhận được
+     *   availableForCheckout() = false, ngăn chặn hoàn toàn lỗi cấp phát trùng (Double-Allocation).
      */
     public function test_concurrent_checkout_race_prevented_by_pessimistic_lock()
     {
         if (config('database.default') !== 'mysql') {
-            $this->markTestSkipped('Pessimistic row locking requires MySQL/InnoDB storage engine.');
+            $this->markTestSkipped('Cơ chế khóa hàng bi quan (Pessimistic Row Lock) bắt buộc chạy trên Storage Engine MySQL InnoDB.');
         }
 
         config(['database.connections.mysql_worker' => config('database.connections.mysql')]);
@@ -129,16 +150,16 @@ class AssetCheckoutRaceGuardTest extends TestCase
         // Luồng 1 (Worker 1) mở transaction và chiếm khóa độc quyền X-Lock trên hàng tài sản
         \Illuminate\Support\Facades\DB::connection('mysql')->beginTransaction();
         $lockedAsset = Asset::on('mysql')->whereKey($asset->id)->lockForUpdate()->first();
-        $this->assertNotNull($lockedAsset);
+        $this->assertNotNull($lockedAsset, 'Worker 1 phải lấy được bản ghi tài sản để khóa hàng');
 
-        // Luồng 2 (Worker 2) kết nối riêng biệt cố tranh chấp cùng bản ghi asset với timeout ngắn
+        // Luồng 2 (Worker 2) kết nối riêng biệt cố tranh chấp cùng bản ghi asset với thời gian chờ ngắn (1s)
         \Illuminate\Support\Facades\DB::connection('mysql_worker')->statement('SET innodb_lock_wait_timeout = 1');
 
         $lockTimeoutOccurred = false;
         try {
             Asset::on('mysql_worker')->whereKey($asset->id)->lockForUpdate()->first();
         } catch (\Illuminate\Database\QueryException $e) {
-            // MySQL Error 1205: Lock wait timeout exceeded; try restarting transaction
+            // Mã lỗi MySQL Error 1205: Lock wait timeout exceeded; try restarting transaction
             if (str_contains($e->getMessage(), '1205') || str_contains($e->getMessage(), 'Lock wait timeout')) {
                 $lockTimeoutOccurred = true;
             }
@@ -146,20 +167,20 @@ class AssetCheckoutRaceGuardTest extends TestCase
 
         $this->assertTrue(
             $lockTimeoutOccurred,
-            'MySQL InnoDB must block the second concurrent worker from acquiring lockForUpdate on the same asset row.'
+            'MySQL InnoDB phải chặn luồng Worker 2 và ném lỗi Lock wait timeout khi cố chiếm khóa trên cùng hàng tài sản đang bị Worker 1 khóa.'
         );
 
-        // Luồng 1 hoàn tất checkout cho user1 và COMMIT transaction
-        $asset->checkOut($user1, $admin, now(), null, 'Assigned by Worker 1');
+        // Luồng 1 hoàn tất nghiệp vụ checkout cho user1 và COMMIT transaction
+        $asset->checkOut($user1, $admin, now(), null, 'Cấp phát bởi Worker 1');
         \Illuminate\Support\Facades\DB::connection('mysql')->commit();
 
         // Sau khi Luồng 1 commit, Luồng 2 đọc lại tài sản thì availableForCheckout() trả về false
         $assetAfterCommit = Asset::on('mysql_worker')->whereKey($asset->id)->first();
         $this->assertFalse(
             $assetAfterCommit->availableForCheckout(),
-            'After Worker 1 commits, Worker 2 must observe availableForCheckout() as false, preventing double-allocation.'
+            'Sau khi Worker 1 commit, Worker 2 đọc lại tài sản phải thấy availableForCheckout() là false, ngăn ngừa lỗi cấp phát trùng.'
         );
-        $this->assertSame(1, (int) $assetAfterCommit->checkout_counter);
-        $this->assertSame($user1->id, (int) $assetAfterCommit->assigned_to);
+        $this->assertSame(1, (int) $assetAfterCommit->checkout_counter, 'Bộ đếm checkout_counter phải bằng 1');
+        $this->assertSame($user1->id, (int) $assetAfterCommit->assigned_to, 'Tài sản phải thuộc về user1 của Worker 1');
     }
 }

@@ -15,6 +15,19 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\MakesWatsonValidationLoud;
 use Tests\TestCase;
 
+/**
+ * ==============================================================================
+ * BỘ KIỂM THỬ API CẤP PHÁT TÀI SẢN (ASSET CHECKOUT FEATURE TEST)
+ * Phân vùng: Phân vùng 1 — Module API Checkout / Checkin & Cấp phát / Thu hồi
+ * Do: 2312718: Phạm Nguyễn Ngọc Phước (Lead QA - Nhóm 05)
+ * Kỹ thuật trọng tâm: K16 Testcontainers (Docker MySQL 8.0.36 Ephemeral Container)
+ * 
+ * Mục tiêu kiểm thử:
+ * Kiểm chứng toàn diện quy trình cấp phát tài sản qua API v1 cho các đối tượng đa hình
+ * (User, Location, Asset), xử lý ma trận đa công ty (FMCS), bảo vệ tính toàn vẹn trạng thái
+ * (Zero-Mutation), chặn cấp phát cho tài sản hỏng / đã mượn / người đã xóa mềm, và kiểm toán.
+ * ==============================================================================
+ */
 class AssetCheckoutTest extends TestCase
 {
     use MakesWatsonValidationLoud;
@@ -26,6 +39,11 @@ class AssetCheckoutTest extends TestCase
         Event::fake([CheckoutableCheckedOut::class]);
     }
 
+    /**
+     * Kịch bản: Gửi yêu cầu mượn tài sản (Checkout Request) và ghi nhật ký
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     */
     public function test_checkout_request()
     {
         Notification::fake();
@@ -127,6 +145,8 @@ class AssetCheckoutTest extends TestCase
 
     /**
      * TC-CO-02: LUỒNG TÍCH HỢP KHÉP KÍN TOÀN TRÌNH (CHECKOUT ➔ CHECKIN)
+     * Phân vùng: Phân vùng 1 — Integration Smoke Test
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
      * Phương thức: test_asset_can_be_checked_out_and_checked_back_in_through_api
      * Loại kiểm thử: End-to-End Integration Testing
      */
@@ -666,7 +686,9 @@ class AssetCheckoutTest extends TestCase
     }
 
     /**
-     * TC-CO-06: Chặn cấp phát tài sản đang được mượn bởi người khác mà chưa hoàn tất Checkin
+     * TC-CO-06: CHẶN CẤP PHÁT TÀI SẢN ĐANG ĐƯỢC MƯỢN BỞI NGƯỜI KHÁC MÀ CHƯA CHECKIN
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
      * Phương thức: test_checkout_fails_if_asset_already_checked_out
      * Loại kiểm thử: Negative Testing / State Conflict Prevention
      */
@@ -694,7 +716,9 @@ class AssetCheckoutTest extends TestCase
     }
 
     /**
-     * TC-CO-07: Cấp phát tài sản trực tiếp cho Địa điểm (Location) thay vì Người dùng
+     * TC-CO-07: CẤP PHÁT TÀI SẢN TRỰC TIẾP CHO ĐỊA ĐIỂM (LOCATION) THAY VÌ NGƯỜI DÙNG
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
      * Phương thức: test_checkout_to_location_instead_of_user
      * Loại kiểm thử: Positive Testing / Polymorphic Target
      */
@@ -708,7 +732,7 @@ class AssetCheckoutTest extends TestCase
             ->postJson(route('api.asset.checkout', $asset), [
                 'checkout_to_type' => 'location',
                 'assigned_location' => $targetLocation->id,
-                'note' => 'Checkout directly to location',
+                'note' => 'Cấp phát trực tiếp cho địa điểm kho phòng ban',
             ]);
 
         $response->assertOk()
@@ -724,8 +748,10 @@ class AssetCheckoutTest extends TestCase
 
     /**
      * TC-CO-01: CẤP PHÁT TÀI SẢN THÀNH CÔNG CHO NGƯỜI DÙNG QUA API
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
      * Phương thức: test_asset_can_be_checked_out_through_api
-     * Loại kiểm thử: Functional/Positive Testing
+     * Loại kiểm thử: Functional / Positive Testing
      */
     public function test_asset_can_be_checked_out_through_api(): void
     {
@@ -734,6 +760,7 @@ class AssetCheckoutTest extends TestCase
             'assigned_type' => null,
         ]);
         $targetUser = User::factory()->create();
+        /** @var User $admin */
         $admin = User::factory()->checkoutAssets()->create();
         $newStatus = Statuslabel::factory()->create(['deployable' => 1]);
 
@@ -759,6 +786,8 @@ class AssetCheckoutTest extends TestCase
 
     /**
      * TC-CO-03: CHẶN CẤP PHÁT TÀI SẢN KHÔNG Ở TRẠNG THÁI SẴN SÀNG (UNDEPLOYABLE)
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
      * Phương thức: test_asset_cannot_be_checked_out_if_not_deployable
      * Loại kiểm thử: Negative Testing / Business Rule Enforcement
      */
@@ -767,6 +796,7 @@ class AssetCheckoutTest extends TestCase
         $undeployableStatus = Statuslabel::factory()->create(['deployable' => 0]);
         $asset = Asset::factory()->create(['status_id' => $undeployableStatus->id]);
         $targetUser = User::factory()->create();
+        /** @var User $admin */
         $admin = User::factory()->checkoutAssets()->create();
 
         $response = $this->actingAsForApi($admin)
@@ -785,6 +815,13 @@ class AssetCheckoutTest extends TestCase
         $this->assertEquals(0, $asset->checkout_counter);
     }
 
+    /**
+     * TC-CO-08: TARGET USER KHÔNG HỢP LỆ KHÔNG LÀM BIẾN DỊ DỮ LIỆU TÀI SẢN (ZERO-MUTATION)
+     * Phân vùng: Phân vùng 1 — API Checkout
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Phương thức: test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log
+     * Loại kiểm thử: Negative / Data Integrity & Zero-Mutation
+     */
     public function test_invalid_checkout_target_does_not_mutate_asset_or_create_checkout_log(): void
     {
         $asset = Asset::factory()->create();
@@ -816,9 +853,11 @@ class AssetCheckoutTest extends TestCase
     }
 
     /**
-     * TC-CO-04: KIỂM TRA CƠ CHẾ CHẶN TRUY CẬP KHI THIẾU BEARER TOKEN (SECURITY GATE)
+     * TC-CO-04: CHỐT CHẶN BẢO MẬT KHI THIẾU BEARER TOKEN OAUTH PASSPORT (SECURITY GATE 401)
+     * Phân vùng: Phân vùng 1 — Security & Authentication Gate
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
      * Phương thức: test_checkout_fails_without_oauth_passport_token
-     * Loại kiểm thử: Security & Authentication Testing
+     * Loại kiểm thử: Security & Authentication Testing (401 Unauthorized)
      */
     public function test_checkout_fails_without_oauth_passport_token(): void
     {
@@ -836,16 +875,17 @@ class AssetCheckoutTest extends TestCase
 
     /**
      * TC-CO-05: KIỂM TRA GỬI YÊU CẦU MƯỢN TÀI SẢN (CHECKOUT REQUEST)
+     * Phân vùng: Phân vùng 1 — Workflow Testing
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
      * Phương thức: test_checkout_request_is_logged_for_requestable_and_rejected_for_non_requestable
      * Loại kiểm thử: Business Workflow
-     * Ghi chú: test chỉ bao phủ bước GỬI yêu cầu; bước duyệt (approval) chưa được kiểm thử.
-     * Tên cũ test_checkout_request_approval_workflow được đổi vì nói quá phạm vi.
      */
     public function test_checkout_request_is_logged_for_requestable_and_rejected_for_non_requestable(): void
     {
         Notification::fake();
         $requestableAsset = Asset::factory()->requestable()->create();
         $nonRequestableAsset = Asset::factory()->nonrequestable()->create();
+        /** @var User $requester */
         $requester = User::factory()->create();
 
         // 1. Gửi yêu cầu mượn trên tài sản requestable
@@ -857,9 +897,112 @@ class AssetCheckoutTest extends TestCase
         $this->assertHasTheseActionLogs($requestableAsset, ['create', 'requested']);
 
         // 2. Chặn yêu cầu mượn trên tài sản non-requestable
+        /** @var User $anotherRequester */
         $anotherRequester = User::factory()->create();
         $this->actingAsForApi($anotherRequester)
             ->post(route('api.assets.requests.store', $nonRequestableAsset->id))
             ->assertStatusMessageIs('error');
+    }
+
+    /**
+     * TC-CO-09: CẤP PHÁT TÀI SẢN QUA MÃ THẺ TÀI SẢN (CHECKOUT BY ASSET TAG)
+     * Phân vùng: Phân vùng 1 — Alternative Identifier Route
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Phương thức: test_asset_can_be_checked_out_by_tag
+     * Endpoint: POST hardware/bytag/{any}/checkout (api.assets.checkout.bytag)
+     */
+    public function test_asset_can_be_checked_out_by_tag(): void
+    {
+        $asset = Asset::factory()->create();
+        $targetUser = User::factory()->create();
+        /** @var User $admin */
+        $admin = User::factory()->checkoutAssets()->create();
+
+        $response = $this->actingAsForApi($admin)
+            ->postJson(route('api.assets.checkout.bytag', $asset->asset_tag), [
+                'checkout_to_type' => 'user',
+                'assigned_user' => $targetUser->id,
+                'note' => 'Cấp phát qua mã thẻ tài sản',
+            ]);
+
+        $response->assertOk()
+            ->assertStatusMessageIs('success');
+
+        $asset->refresh();
+        $this->assertEquals($targetUser->id, $asset->assigned_to);
+        $this->assertTrue($asset->assignedTo()->is($targetUser));
+        $this->assertEquals(1, $asset->checkout_counter);
+        Event::assertDispatched(CheckoutableCheckedOut::class);
+    }
+
+    /**
+     * TC-CO-09B: TỪ CHỐI CHECKOUT BY TAG KHI MÃ THẺ KHÔNG TỒN TẠI
+     * Phân vùng: Phân vùng 1 — Negative Boundary
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Phương thức: test_checkout_by_tag_fails_when_asset_tag_not_found
+     */
+    public function test_checkout_by_tag_fails_when_asset_tag_not_found(): void
+    {
+        $admin = User::factory()->checkoutAssets()->create();
+        $targetUser = User::factory()->create();
+
+        $response = $this->actingAsForApi($admin)
+            ->postJson(route('api.assets.checkout.bytag', 'NON_EXISTENT_TAG_99999'), [
+                'checkout_to_type' => 'user',
+                'assigned_user' => $targetUser->id,
+            ]);
+
+        $response->assertOk()
+            ->assertStatusMessageIs('error')
+            ->assertMessagesAre('Asset not found');
+
+        Event::assertNotDispatched(CheckoutableCheckedOut::class);
+    }
+
+    /**
+     * TC-CO-10: CHẶN CẤP PHÁT TÀI SẢN CHO ĐỐI TƯỢNG ĐÃ BỊ XÓA MỀM (SOFT-DELETED TARGET REJECTION)
+     * Phân vùng: Phân vùng 1 — Data Integrity & Zero-Mutation
+     * Do: 2312718: Phạm Nguyễn Ngọc Phước
+     * Phương thức: test_checkout_fails_when_target_user_is_soft_deleted
+     * Mục tiêu nghiệp vụ: Tránh gán tài sản cho nhân sự đã nghỉ việc (bị xóa mềm trong hệ thống).
+     */
+    public function test_checkout_fails_when_target_user_is_soft_deleted(): void
+    {
+        $asset = Asset::factory()->create();
+        $originalLocationId = $asset->location_id;
+        $originalStatusId = $asset->status_id;
+
+        $targetUser = User::factory()->create();
+        $targetUser->delete(); // Soft delete nhân viên này
+
+        $this->assertSoftDeleted('users', ['id' => $targetUser->id]);
+
+        /** @var User $admin */
+        $admin = User::factory()->checkoutAssets()->create();
+
+        $response = $this->actingAsForApi($admin)
+            ->postJson(route('api.asset.checkout', $asset), [
+                'checkout_to_type' => 'user',
+                'assigned_user' => $targetUser->id,
+            ]);
+
+        $response->assertOk()
+            ->assertStatusMessageIs('error');
+
+        // Đảm bảo nguyên tắc Zero-Mutation: không làm biến dị tài sản
+        $asset->refresh();
+        $this->assertNull($asset->assigned_to);
+        $this->assertNull($asset->assigned_type);
+        $this->assertEquals($originalLocationId, $asset->location_id);
+        $this->assertEquals($originalStatusId, $asset->status_id);
+        $this->assertEquals(0, $asset->checkout_counter);
+
+        // Không sinh log cấp phát và không phát event
+        $this->assertDatabaseMissing('action_logs', [
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+            'action_type' => 'checkout',
+        ]);
+        Event::assertNotDispatched(CheckoutableCheckedOut::class);
     }
 }
