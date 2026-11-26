@@ -10,6 +10,10 @@ use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
+/**
+ * TC-CS-01 (Phân vùng 3 – Nguyễn Đình Thạch, 2314506): checkout vật tư tiêu hao qua API – quyền,
+ * số lượng, thông báo, log, phạm vi đa công ty, chặn khi hết hàng.
+ */
 class ConsumableCheckoutTest extends TestCase
 {
     public function test_checking_out_consumable_requires_correct_permission()
