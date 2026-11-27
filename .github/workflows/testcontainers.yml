@@ -24,8 +24,8 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.2"
-          extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip
-          coverage: none
+          extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip, xdebug
+          coverage: xdebug
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
