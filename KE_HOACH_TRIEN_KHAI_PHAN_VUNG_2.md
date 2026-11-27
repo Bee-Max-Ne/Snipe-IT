@@ -838,7 +838,7 @@ git show --format=fuller --no-ext-diff HEAD --
 
 ## 9. BẢNG THEO DÕI TIẾN ĐỘ VÀ KẾT QUẢ
 
-Bảng dưới đây ghi nhận kết quả thực thi thực tế trên **SQLite/local** (`PHP 8.5.11` + `phpunit.xml`) và **Docker/MySQL K16** (`K16-DB-CONTAINER`: `mysql:8.0.36` qua `tests/testcontainers/run.mjs`).
+Bảng dưới đây ghi nhận kết quả thực thi thực tế trên **SQLite/local** (`PHP 8.2.12` + `phpunit.xml`) và **Docker/MySQL K16** (`K16-DB-CONTAINER`: `PHP 8.2.12` + `mysql:8.0.36` qua `tests/testcontainers/run.mjs`).
 
 | Test Case | Ưu tiên theo báo cáo | File test mục tiêu | SQLite/local | Docker/MySQL K16 | Trạng thái tổng | Kết quả / bằng chứng | Commit hash |
 |---|---|---|---|---|---|---|---|
@@ -862,20 +862,20 @@ Bảng dưới đây ghi nhận kết quả thực thi thực tế trên **SQLit
 
 | Bộ test | Môi trường | Tests | Assertions | Passed | Failed | Skipped | Incomplete | Runtime | Evidence / commit |
 |---|---|---|---|---|---|---|---|---|---|
-| `AssetTest.php` | SQLite/local (`PHP 8.5.11`) | 30 | 82 | 30 | 0 | 0 | 0 | 00:55.852 | `d91f172` |
-| `AssetTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 30 | 82 | 30 | 0 | 0 | 0 | 00:48.769 | `d91f172` |
-| `DepreciationTest.php` | SQLite/local (`PHP 8.5.11`) | 12 | 18 | 12 | 0 | 0 | 0 | 00:06.991 | `dcbd649` |
-| `DepreciationTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 12 | 18 | 12 | 0 | 0 | 0 | 00:52.436 | `dcbd649` |
-| `AssetModelTest.php` | SQLite/local (`PHP 8.5.11`) | 14 | 22 | 14 | 0 | 0 | 0 | 00:07.283 | `275279e` |
-| `AssetModelTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 14 | 22 | 14 | 0 | 0 | 0 | 00:56.827 | `275279e` |
-| `RestoreAssetTest.php` | SQLite/local (`PHP 8.5.11`) | 5 | 18 | 5 | 0 | 0 | 0 | 00:06.012 | `0a13047` |
-| `RestoreAssetTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 5 | 18 | 5 | 0 | 0 | 0 | 00:44.790 | `0a13047` |
-| `AssetWarrantyValidationTest.php` | SQLite/local (`PHP 8.5.11`) | 8 | 13 | 8 | 0 | 0 | 0 | 00:05.052 | `5c93369` |
-| `AssetWarrantyValidationTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 8 | 13 | 8 | 0 | 0 | 0 | 00:49.533 | `5c93369` |
-| `EncryptedImeiMacCustomFieldTest.php` | SQLite/local (`PHP 8.5.11`) | 2 | 12 | 2 | 0 | 0 | 0 | 00:09.740 | `155f6bb` |
-| `StoreAssetTest.php` | SQLite/local (`PHP 8.5.11`) | 39 | 153 | 38 | 0 | 0 | 1 | 00:29.801 | Upstream (1 `@todo` có sẵn) |
-| `EncryptedCustomFieldFormDisclosureTest.php` | SQLite/local (`PHP 8.5.11`) | 11 | 29 | 11 | 0 | 0 | 0 | 01:07.443 | Upstream |
-| `php:8.2.12-cli` container (`DepreciationTest.php`) | Docker container (`php:8.2.12-cli`) | 12 | 0 | 0 | 0 | 0 | 0 (12 Errors) | 00:32.683 | `BLOCKED`: thiếu extension `ext-zip` (`ZipArchive`), `pdo_mysql` |
+| `AssetTest.php` | SQLite/local (`PHP 8.2.12`) | 30 | 82 | 30 | 0 | 0 | 0 | 00:08.970 | `d91f172` |
+| `AssetTest.php` | Docker/MySQL K16 (`PHP 8.2.12` + `mysql:8.0.36`) | 30 | 82 | 30 | 0 | 0 | 0 | 00:44.854 | `d91f172` |
+| `DepreciationTest.php` | SQLite/local (`PHP 8.2.12`) | 12 | 18 | 12 | 0 | 0 | 0 | 00:05.785 | `dcbd649` |
+| `DepreciationTest.php` | Docker/MySQL K16 (`PHP 8.2.12` + `mysql:8.0.36`) | 12 | 18 | 12 | 0 | 0 | 0 | 00:39.902 | `dcbd649` |
+| `AssetModelTest.php` | SQLite/local (`PHP 8.2.12`) | 14 | 22 | 14 | 0 | 0 | 0 | 00:05.692 | `275279e` |
+| `AssetModelTest.php` | Docker/MySQL K16 (`PHP 8.2.12` + `mysql:8.0.36`) | 14 | 22 | 14 | 0 | 0 | 0 | 00:39.430 | `275279e` |
+| `RestoreAssetTest.php` | SQLite/local (`PHP 8.2.12`) | 5 | 18 | 5 | 0 | 0 | 0 | 00:04.961 | `0a13047` |
+| `RestoreAssetTest.php` | Docker/MySQL K16 (`PHP 8.2.12` + `mysql:8.0.36`) | 5 | 18 | 5 | 0 | 0 | 0 | 00:35.123 | `0a13047` |
+| `AssetWarrantyValidationTest.php` | SQLite/local (`PHP 8.2.12`) | 8 | 13 | 8 | 0 | 0 | 0 | 00:05.100 | `5c93369` |
+| `AssetWarrantyValidationTest.php` | Docker/MySQL K16 (`PHP 8.2.12` + `mysql:8.0.36`) | 8 | 13 | 8 | 0 | 0 | 0 | 00:33.082 | `5c93369` |
+| `EncryptedImeiMacCustomFieldTest.php` | SQLite/local (`PHP 8.2.12`) | 2 | 12 | 2 | 0 | 0 | 0 | 00:04.412 | `155f6bb` |
+| `StoreAssetTest.php` | SQLite/local | 39 | 153 | 38 | 0 | 0 | 1 | 00:29.801 | Upstream (1 `@todo` có sẵn) |
+| `EncryptedCustomFieldFormDisclosureTest.php` | SQLite/local | 11 | 29 | 11 | 0 | 0 | 0 | 01:07.443 | Upstream |
+| `php:8.2.12-cli` container (`DepreciationTest.php`) | Docker container (`php:8.2.12-cli`) | 12 | 0 | 0 | 0 | 0 | 0 (12 Errors) | 00:32.683 | `BLOCKED`: image gốc thiếu `ext-zip` (`ZipArchive`), `pdo_mysql` |
 
 ### 9.2. Báo cáo lỗi (Defect Reports) & Phân tích nguyên nhân gốc rễ (RCA)
 
