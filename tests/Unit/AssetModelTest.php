@@ -245,4 +245,95 @@ class AssetModelTest extends TestCase
 
         $this->assertSame(0, $model->percentRemaining());
     }
+
+    // =========================================================================
+    // WBS Member 2 — Nguyễn Văn Quốc (2312729) — Phân vùng 2
+    // TS-02.1 / TS-02.3: Asset Model relations & queries
+    // =========================================================================
+
+    /**
+     * TC-AssetModel-01: Kiểm tra quan hệ AssetModel → Depreciation (belongsTo).
+     * AssetModel phải truy xuất được đối tượng Depreciation thông qua quan hệ Eloquent.
+     */
+    public function test_asset_model_has_depreciation_relation(): void
+    {
+        $depreciation = \App\Models\Depreciation::factory()->create([
+            'name'   => 'Standard 3yr',
+            'months' => 36,
+        ]);
+
+        $category = Category::factory()->create(['category_type' => 'asset']);
+        $model = AssetModel::factory()->create([
+            'category_id'    => $category->id,
+            'depreciation_id' => $depreciation->id,
+        ]);
+
+        $this->assertNotNull($model->depreciation, 'AssetModel phải có thể truy cập quan hệ depreciation');
+        $this->assertEquals($depreciation->id, $model->depreciation->id);
+        $this->assertEquals(36, $model->depreciation->months);
+    }
+
+    /**
+     * TC-AssetModel-02: Truy vấn tài sản theo Model — model.assets() phải trả đúng danh sách.
+     * Xác minh chỉ tài sản thuộc model đó được trả về, không lẫn tài sản model khác.
+     */
+    public function test_query_assets_by_model_returns_only_matching_assets(): void
+    {
+        $category = Category::factory()->create(['category_type' => 'asset']);
+        $modelA = AssetModel::factory()->create(['category_id' => $category->id]);
+        $modelB = AssetModel::factory()->create(['category_id' => $category->id]);
+
+        Asset::factory()->count(3)->create(['model_id' => $modelA->id]);
+        Asset::factory()->count(2)->create(['model_id' => $modelB->id]);
+
+        $this->assertSame(3, $modelA->assets()->count(), 'Model A phải có đúng 3 tài sản');
+        $this->assertSame(2, $modelB->assets()->count(), 'Model B phải có đúng 2 tài sản');
+    }
+
+    /**
+     * TC-AssetModel-03: Soft-delete AssetModel — tài sản liên kết vẫn tồn tại trong DB.
+     * Xóa Model không được xóa các Asset đã được gán.
+     */
+    public function test_soft_delete_asset_model_does_not_cascade_to_assets(): void
+    {
+        $category = Category::factory()->create(['category_type' => 'asset']);
+        $model = AssetModel::factory()->create(['category_id' => $category->id]);
+        $assets = Asset::factory()->count(2)->create(['model_id' => $model->id]);
+
+        $model->delete(); // soft delete
+
+        // Model đã bị xóa mềm
+        $this->assertSoftDeleted('models', ['id' => $model->id]);
+
+        // Assets vẫn còn trong DB
+        foreach ($assets as $asset) {
+            $this->assertDatabaseHas('assets', ['id' => $asset->id, 'model_id' => $model->id]);
+        }
+    }
+
+    /**
+     * TC-AssetModel-04: Khôi phục AssetModel — restore() đúng hành vi.
+     */
+    public function test_restore_soft_deleted_asset_model(): void
+    {
+        $category = Category::factory()->create(['category_type' => 'asset']);
+        $model = AssetModel::factory()->create(['category_id' => $category->id]);
+
+        $model->delete();
+        $this->assertSoftDeleted('models', ['id' => $model->id]);
+
+        // Khôi phục
+        AssetModel::withTrashed()->find($model->id)->restore();
+        $this->assertNotSoftDeleted('models', ['id' => $model->id]);
+    }
+
+    /**
+     * TC-AssetModel-05: AssetModel với category_id bắt buộc — không được tạo model mồ côi.
+     */
+    public function test_asset_model_requires_category(): void
+    {
+        $model = AssetModel::factory()->make(['category_id' => null]);
+        $this->assertFalse($model->save(), 'AssetModel phải không được lưu khi thiếu category_id');
+        $this->assertArrayHasKey('category_id', $model->getErrors()->toArray());
+    }
 }
