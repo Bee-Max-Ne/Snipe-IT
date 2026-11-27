@@ -448,22 +448,23 @@ Nếu môi trường không đủ điều kiện, ghi `BLOCKED` kèm output cụ
 
 ### 5.2. Tầng 1 — Local Fast Feedback
 
-Chạy các test độc lập bằng cấu hình testing hiện có. Ví dụ lệnh tham chiếu (phải điều chỉnh theo script/repository thực tế):
+Chạy các test độc lập trên **SQLite/local** bằng **PHP 8.2.12** (`D:\Softwares\php-8.2.12-Win32-vs16-x64\php.exe`) và `vendor/bin/phpunit`:
 
 ```powershell
-php artisan test tests/Unit/AssetTest.php
-php artisan test tests/Unit/DepreciationTest.php
-php artisan test tests/Unit/AssetModelTest.php
+$php82 = "D:\Softwares\php-8.2.12-Win32-vs16-x64\php.exe"
+
+# Unit tests thuộc Phân vùng 2
+& $php82 vendor/bin/phpunit tests/Unit/AssetTest.php --colors=never
+& $php82 vendor/bin/phpunit tests/Unit/DepreciationTest.php --colors=never
+& $php82 vendor/bin/phpunit tests/Unit/AssetModelTest.php --colors=never
+
+# Feature tests thuộc Phân vùng 2
+& $php82 vendor/bin/phpunit tests/Feature/Assets/Api/AssetWarrantyValidationTest.php --colors=never
+& $php82 vendor/bin/phpunit tests/Feature/Assets/Api/RestoreAssetTest.php --colors=never
+& $php82 vendor/bin/phpunit tests/Feature/Assets/Api/EncryptedImeiMacCustomFieldTest.php --colors=never
 ```
 
-Chạy thêm các Feature test có liên quan sau khi đã xác minh đường dẫn:
-
-```powershell
-php artisan test tests/Feature/Assets
-php artisan test tests/Feature/AssetModels
-```
-
-Không dùng lệnh thư mục nếu trong đó có test ngoài phạm vi mà việc chạy có thể ảnh hưởng hoặc mất nhiều thời gian; có thể chạy từng file cụ thể.
+Không dùng lệnh thư mục nếu trong đó có test ngoài phạm vi mà việc chạy có thể ảnh hưởng hoặc mất nhiều thời gian; chỉ chạy từng file cụ thể thuộc Phân vùng 2.
 
 ### 5.3. Tầng 2 — Kiểm thử Docker/K16 với MySQL 8.0.36 Testcontainers
 
@@ -521,33 +522,34 @@ Nếu Docker daemon không hoạt động, ghi `BLOCKED — DOCKER DAEMON UNAVAI
 
 #### 5.3.3. Lệnh chạy Docker/K16
 
-Cú pháp chuẩn được báo cáo giữa kỳ mô tả:
+Cú pháp chuẩn qua script `test:integration:testcontainers` trong `package.json` (`node tests/testcontainers/run.mjs`):
 
 ```powershell
+# Đảm bảo runner Testcontainers dùng đúng PHP 8.2.12 (đã lưu ở biến môi trường User PHP_BINARY)
+$env:PHP_BINARY = "D:\Softwares\php-8.2.12-Win32-vs16-x64\php.exe"
+
 npm run test:integration:testcontainers -- <đường dẫn file test hoặc --filter>
 ```
 
-Trước khi dùng, xác minh `package.json` thực sự khai báo script `test:integration:testcontainers` và `run.mjs` chuyển tiếp tham số tới PHPUnit. Nếu script hoặc cú pháp khác, dùng đúng cú pháp đang có và ghi lại lệnh thực tế; không tự tạo npm script thay thế.
-
-Chạy lần lượt từng bộ test chính trên MySQL container:
+Chạy lần lượt các bộ test Phân vùng 2 trên **MySQL 8.0.36** container (`K16-DB-CONTAINER`):
 
 ```powershell
-npm run test:integration:testcontainers -- tests/Unit/AssetTest.php
-npm run test:integration:testcontainers -- tests/Unit/DepreciationTest.php
-npm run test:integration:testcontainers -- tests/Unit/AssetModelTest.php
+npm run test:integration:testcontainers -- tests/Unit/AssetTest.php --colors=never
+npm run test:integration:testcontainers -- tests/Unit/DepreciationTest.php --colors=never
+npm run test:integration:testcontainers -- tests/Unit/AssetModelTest.php --colors=never
+npm run test:integration:testcontainers -- tests/Feature/Assets/Api/AssetWarrantyValidationTest.php --colors=never
+npm run test:integration:testcontainers -- tests/Feature/Assets/Api/RestoreAssetTest.php --colors=never
 ```
 
-Để kiểm tra đúng từng testcase trong vòng lặp commit độc lập, dùng `--filter` với tên method đã xác minh trong source test, ví dụ mẫu:
+Để kiểm tra từng testcase riêng lẻ bằng `--filter` với tên method thực tế:
 
 ```powershell
-npm run test:integration:testcontainers -- tests/Unit/AssetTest.php --filter=<TEN_METHOD_TC_HW_XX>
-npm run test:integration:testcontainers -- tests/Unit/DepreciationTest.php --filter=<TEN_METHOD_TC_DP_XX>
-npm run test:integration:testcontainers -- tests/Unit/AssetModelTest.php --filter=<TEN_METHOD_ASSET_MODEL>
+npm run test:integration:testcontainers -- tests/Unit/AssetTest.php --filter=test_tc_hw01_create_hardware_asset
+npm run test:integration:testcontainers -- tests/Unit/DepreciationTest.php --filter=test_tc_dp01_linear_depreciation_mid_period_1200_12m_6m
+npm run test:integration:testcontainers -- tests/Unit/AssetModelTest.php --filter=test_asset_model_has_depreciation_relation
 ```
 
-`<TEN_METHOD_...>` là placeholder, phải thay bằng method thực tế; không copy nguyên placeholder để chạy. Nếu testcase nằm trong Feature test, truyền đúng đường dẫn Feature test đã được xác minh, ví dụ `tests/Feature/Assets/...`; không tạo file Feature mới chỉ vì ví dụ này.
-
-Sau mỗi testcase: chạy filter trên MySQL container nếu test tương thích; sau đó chạy regression file/suite liên quan trên container trước khi chốt commit. Cuối giai đoạn phải chạy lại toàn bộ ba file Unit chính trên MySQL container, không chỉ dựa vào các lần chạy filter rời rạc.
+Sau mỗi testcase: chạy filter trên MySQL container nếu test tương thích; sau đó chạy regression toàn bộ file test trên container trước khi chốt commit. Cuối giai đoạn phải chạy lại toàn bộ các file Unit/Feature chính trên MySQL container.
 
 #### 5.3.4. Ma trận bắt buộc chạy trên Docker/MySQL
 
