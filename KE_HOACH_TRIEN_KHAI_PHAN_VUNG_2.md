@@ -838,39 +838,67 @@ git show --format=fuller --no-ext-diff HEAD --
 
 ## 9. BẢNG THEO DÕI TIẾN ĐỘ VÀ KẾT QUẢ
 
-Bảng dưới đây là baseline khi lập kế hoạch. Chỉ cập nhật `PASS`/`FAIL` sau khi chạy test. Commit hash để trống cho đến khi commit thực tế được tạo.
+Bảng dưới đây ghi nhận kết quả thực thi thực tế trên **SQLite/local** (`PHP 8.5.11` + `phpunit.xml`) và **Docker/MySQL K16** (`K16-DB-CONTAINER`: `mysql:8.0.36` qua `tests/testcontainers/run.mjs`).
 
 | Test Case | Ưu tiên theo báo cáo | File test mục tiêu | SQLite/local | Docker/MySQL K16 | Trạng thái tổng | Kết quả / bằng chứng | Commit hash |
 |---|---|---|---|---|---|---|---|
-| TC-HW-01 | P1 Critical | `tests/Unit/AssetTest.php` | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| TC-HW-02 | P1 Critical | `tests/Unit/AssetTest.php` | NOT RUN | NEEDS VERIFICATION | NEEDS VERIFICATION | Xác minh DB UNIQUE + validation trên MySQL | — |
-| TC-HW-03 | P1 Major | `tests/Unit/AssetTest.php` / integration | NOT RUN | NOT RUN | PLANNED | Chưa chạy; cần concurrency thật | — |
-| TC-HW-04 | P2 Moderate | `tests/Unit/AssetTest.php` / Feature | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| TC-HW-05 | P3 Minor | `tests/Unit/AssetTest.php` | NOT RUN | NEEDS VERIFICATION | NEEDS VERIFICATION | Xác minh backfill có được hỗ trợ | — |
-| TC-DP-01 | P1 Critical | `tests/Unit/DepreciationTest.php` | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| TC-DP-02 | P1 Critical | `tests/Unit/DepreciationTest.php` | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| TC-DP-03 | P1 Major | `tests/Unit/DepreciationTest.php` | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| TC-HW-06 | P1 Major | `tests/Unit/AssetTest.php` / Feature | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| TC-HW-07 | P2 Moderate | `tests/Unit/AssetTest.php` / Feature | NOT RUN | NEEDS VERIFICATION | NEEDS VERIFICATION | Xác minh validation 0–240 | — |
-| TC-HW-08 | P2 Moderate | Feature Assets | NOT RUN | NOT RUN | PLANNED | Xác minh parser/locale và MySQL persistence | — |
-| TC-HW-09 | P1 Critical | Asset/CustomField Feature test | NOT RUN | NEEDS VERIFICATION | NEEDS VERIFICATION | Xác minh mã hóa + gate trên schema MySQL thật | — |
-| TC-HW-10 | P2 Major | `tests/Unit/AssetTest.php` | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| TC-HW-11 | P2 Major | `tests/Unit/AssetTest.php` / Feature | NOT RUN | NOT RUN | PLANNED | Chưa chạy | — |
-| AM-01..05 | Bổ sung | `tests/Unit/AssetModelTest.php` | NOT RUN | NEEDS VERIFICATION | NEEDS VERIFICATION | Chốt sau source audit | — |
+| TC-HW-01 | P1 Critical | `tests/Unit/AssetTest.php` | PASS | PASS | PASS | `test_tc_hw01_create_hardware_asset`: AST-001, Dell XPS, $1200 lưu thành công | `d91f172` |
+| TC-HW-02 | P1 Critical | `tests/Unit/AssetTest.php` | PASS | PASS | PASS (có Defect schema) | Validation `unique_undeleted` chặn trùng; DB chỉ có index thường (xem `DEFECT-HW-02`) | `d91f172` |
+| TC-HW-03 | P1 Major | `tests/Unit/AssetTest.php` | PASS | PASS | PASS | `test_auto_increment_collision` + `test_auto_increment_double` (upstream) | — |
+| TC-HW-04 | P2 Moderate | `tests/Unit/AssetTest.php` / `StoreAssetTest.php` | PASS | PASS | PASS | `test_auto_increment` + `StoreAssetTest` | — |
+| TC-HW-05 | P3 Minor | `tests/Unit/AssetTest.php` | PASS | PASS | PASS | `test_auto_increment_gap_and_backfill` xác nhận backfill hoạt động | — |
+| TC-DP-01 | P1 Critical | `tests/Unit/DepreciationTest.php` | PASS | PASS | PASS | `$1200`, 12m, 6m → `$600.00` (50%) | `dcbd649` |
+| TC-DP-02 | P1 Critical | `tests/Unit/DepreciationTest.php` | PASS | PASS | PASS | `$1000`, 36m, floor `$100` → dừng tại `$100.00` | `dcbd649` |
+| TC-DP-03 | P1 Major | `tests/Unit/DepreciationTest.php` | PASS | PASS | PASS | `3/12` → `25.00%` | `dcbd649` |
+| TC-HW-06 | P1 Major | `AssetTest.php` / `AssetWarrantyValidationTest.php` | PASS | PASS | PASS | Từ chối `model_id = null`, ID không tồn tại và Model đã soft-delete | `d91f172`, `5c93369` |
+| TC-HW-07 | P2 Moderate | `AssetTest.php` / `AssetWarrantyValidationTest.php` | PASS (characterization) | PASS (characterization) | FAIL theo kỳ vọng báo cáo (`241` được chấp nhận) | `-1` bị từ chối; `0`, `240` chấp nhận; `241` bị chấp nhận do `digits_between:0,240` (xem `DEFECT-HW-07`) | `d91f172`, `5c93369` |
+| TC-HW-08 | P2 Moderate | `AssetWarrantyValidationTest.php` | PASS | PASS | PASS | `25.500.000` (EU) → `25500000.0`; `25,500,000.50` (US) → `25500000.50` | `5c93369` |
+| TC-HW-09 | P1 Critical | `EncryptedImeiMacCustomFieldTest.php` / `EncryptedCustomFieldFormDisclosureTest.php` | PASS | INCOMPLETE (MySQL) | PASS (SQLite) | Ciphertext != plaintext, kiểm soát quyền `assets.view.encrypted_custom_fields`; MySQL `markIncompleteIfMySQL` do DDL implicit commit | `155f6bb` |
+| TC-HW-10 | P2 Major | `tests/Unit/AssetTest.php` | PASS | PASS | PASS | `test_tc_hw10_laptop_and_two_ram_components_total_value`: $1000 + 2x$50 = $1100 | `d91f172` |
+| TC-HW-11 | P2 Major | `AssetTest.php` / `RestoreAssetTest.php` | PASS | PASS | PASS (có Defect phân quyền) | Soft delete & restore hoạt động cho admin; non-admin `assets.delete` nhận 403 (xem `DEFECT-HW-11`) | `d91f172`, `0a13047` |
+| AM-01..05 | Bổ sung | `tests/Unit/AssetModelTest.php` | PASS | PASS | PASS | 14/14 tests (bao gồm 5 test bổ sung + 9 test upstream) | `275279e` |
 
 ### 9.1. Bảng tổng kết thực thi theo file
 
 | Bộ test | Môi trường | Tests | Assertions | Passed | Failed | Skipped | Incomplete | Runtime | Evidence / commit |
 |---|---|---|---|---|---|---|---|---|---|
-| `AssetTest.php` | SQLite/local | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| `AssetTest.php` | Docker/MySQL K16 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| `DepreciationTest.php` | SQLite/local | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| `DepreciationTest.php` | Docker/MySQL K16 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| `AssetModelTest.php` | SQLite/local | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| `AssetModelTest.php` | Docker/MySQL K16 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Feature tests liên quan | SQLite/local nếu tương thích | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Feature tests liên quan | Docker/MySQL K16 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Dockerized PHP/PHPUnit runner (nếu sử dụng) | Container runner | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| `AssetTest.php` | SQLite/local (`PHP 8.5.11`) | 30 | 82 | 30 | 0 | 0 | 0 | 00:55.852 | `d91f172` |
+| `AssetTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 30 | 82 | 30 | 0 | 0 | 0 | 00:48.769 | `d91f172` |
+| `DepreciationTest.php` | SQLite/local (`PHP 8.5.11`) | 12 | 18 | 12 | 0 | 0 | 0 | 00:06.991 | `dcbd649` |
+| `DepreciationTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 12 | 18 | 12 | 0 | 0 | 0 | 00:52.436 | `dcbd649` |
+| `AssetModelTest.php` | SQLite/local (`PHP 8.5.11`) | 14 | 22 | 14 | 0 | 0 | 0 | 00:07.283 | `275279e` |
+| `AssetModelTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 14 | 22 | 14 | 0 | 0 | 0 | 00:56.827 | `275279e` |
+| `RestoreAssetTest.php` | SQLite/local (`PHP 8.5.11`) | 5 | 18 | 5 | 0 | 0 | 0 | 00:06.012 | `0a13047` |
+| `RestoreAssetTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 5 | 18 | 5 | 0 | 0 | 0 | 00:44.790 | `0a13047` |
+| `AssetWarrantyValidationTest.php` | SQLite/local (`PHP 8.5.11`) | 8 | 13 | 8 | 0 | 0 | 0 | 00:05.052 | `5c93369` |
+| `AssetWarrantyValidationTest.php` | Docker/MySQL K16 (`mysql:8.0.36`) | 8 | 13 | 8 | 0 | 0 | 0 | 00:49.533 | `5c93369` |
+| `EncryptedImeiMacCustomFieldTest.php` | SQLite/local (`PHP 8.5.11`) | 2 | 12 | 2 | 0 | 0 | 0 | 00:09.740 | `155f6bb` |
+| `StoreAssetTest.php` | SQLite/local (`PHP 8.5.11`) | 39 | 153 | 38 | 0 | 0 | 1 | 00:29.801 | Upstream (1 `@todo` có sẵn) |
+| `EncryptedCustomFieldFormDisclosureTest.php` | SQLite/local (`PHP 8.5.11`) | 11 | 29 | 11 | 0 | 0 | 0 | 01:07.443 | Upstream |
+| `php:8.2.12-cli` container (`DepreciationTest.php`) | Docker container (`php:8.2.12-cli`) | 12 | 0 | 0 | 0 | 0 | 0 (12 Errors) | 00:32.683 | `BLOCKED`: thiếu extension `ext-zip` (`ZipArchive`), `pdo_mysql` |
+
+### 9.2. Báo cáo lỗi (Defect Reports) & Phân tích nguyên nhân gốc rễ (RCA)
+
+#### [DEFECT-HW-02] CSDL không có ràng buộc UNIQUE trên cột `assets.asset_tag`
+- **Người phát hiện:** Nguyễn Văn Quốc (2312729)
+- **Test Case liên quan:** TC-HW-02
+- **Severity / Priority:** Major / P2
+- **Root Cause Analysis:** Migration `2013_11_15_190327_create_assets_table.php` tạo `asset_tag` dạng nullable string không có `unique()`, và `2018_05_14_223646_add_indexes_to_assets.php` chỉ tạo composite index thường `$table->index(['deleted_at', 'asset_tag'])`. Tính duy nhất chỉ được bảo vệ ở tầng model bằng rule `unique_undeleted:assets,asset_tag` (`app/Models/Asset.php:156`). Ghi trực tiếp qua `DB::table('assets')->insert()` có thể chèn trùng (đã chứng minh bằng `test_database_does_not_enforce_asset_tag_uniqueness`).
+- **Trạng thái:** Ghi nhận hiện trạng theo nguyên tắc không tự sửa schema ngoài phạm vi.
+
+#### [DEFECT-HW-07] `warranty_months = 241` vẫn được chấp nhận do rule `digits_between:0,240`
+- **Người phát hiện:** Nguyễn Văn Quốc (2312729)
+- **Test Case liên quan:** TC-HW-07
+- **Severity / Priority:** Major / P2
+- **Root Cause Analysis:** `app/Models/Asset.php:159` khai báo `'warranty_months' => ['nullable', 'numeric', 'digits_between:0,240']`. Trong Laravel Validator, `digits_between:min,max` kiểm tra **số lượng chữ số** (từ 0 đến 240 ký tự số), không kiểm tra giá trị số học lớn nhất `240`. Do đó `241` (có 3 chữ số) vượt qua validation thay vì bị từ chối như báo cáo yêu cầu.
+- **Proposed Fix:** Đổi rule sang `['nullable', 'integer', 'min:0', 'max:240']` sau khi thống nhất với nhóm.
+
+#### [DEFECT-HW-11] Người dùng non-admin có quyền `assets.delete` nhận 403 khi gọi API restore
+- **Người phát hiện:** Nguyễn Văn Quốc (2312729)
+- **Test Case liên quan:** TC-HW-11
+- **Severity / Priority:** Major / P2
+- **Root Cause Analysis:** Cả `Api\AssetsController::restore()` (`app/Http/Controllers/Api/AssetsController.php:1320`) và `AssetsController::getRestore()` đều gọi `$this->authorize('delete', $asset)` trên đối tượng đã soft-delete. Trong khi đó `SnipePermissionsPolicy::delete()` (`app/Policies/SnipePermissionsPolicy.php:175-177`) kiểm tra `$itemConditional = empty($item->deleted_at);`, luôn trả về `false` khi `$asset` đã bị xóa mềm. Chỉ `admin`/`superuser` vượt qua nhờ `before()`.
+- **Proposed Fix:** Tách ability `restore` riêng trong Policy hoặc kiểm tra trên `Asset::class` (thuộc phạm vi Phân vùng 4).
 
 ---
 
