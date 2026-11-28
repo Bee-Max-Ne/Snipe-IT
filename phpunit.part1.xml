@@ -11,9 +11,10 @@
 >
   <testsuites>
     <testsuite name="Part1ApiCheckoutCheckin">
-      <file>./tests/Feature/Checkouts/Api/AssetCheckoutTest.php</file>
-      <file>./tests/Feature/Checkins/Api/AssetCheckinTest.php</file>
-      <file>./tests/Feature/Checkouts/Api/AssetCheckoutRaceGuardTest.php</file>
+      <directory>./tests/Feature/Checkouts</directory>
+      <directory>./tests/Feature/Checkins</directory>
+      <directory>./tests/Feature/CheckoutAcceptances</directory>
+      <directory>./tests/Feature/CheckoutRequests</directory>
     </testsuite>
   </testsuites>
   <php>

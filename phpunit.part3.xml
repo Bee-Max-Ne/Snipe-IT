@@ -26,11 +26,9 @@
     </testsuite>
     <!-- TC-AC-01..02, TC-CP-01..02, TC-CS-01..02: phụ kiện, linh kiện, vật tư -->
     <testsuite name="Part3AccessoriesComponentsConsumables">
-      <file>./tests/Feature/Accessories/Api/AccessoryQuantityOnCheckoutTest.php</file>
-      <file>./tests/Feature/Components/Api/ComponentAttachToAssetTest.php</file>
-      <file>./tests/Feature/Checkins/Api/ComponentCheckinTest.php</file>
-      <file>./tests/Feature/Checkouts/Api/ConsumableCheckoutTest.php</file>
-      <file>./tests/Feature/Consumables/ConsumableLowStockAlertTest.php</file>
+      <directory>./tests/Feature/Accessories</directory>
+      <directory>./tests/Feature/Components</directory>
+      <directory>./tests/Feature/Consumables</directory>
       <file>./tests/Feature/LowStockApiVisibilityTest.php</file>
     </testsuite>
   </testsuites>

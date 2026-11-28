@@ -19,11 +19,11 @@
       <file>./tests/Unit/DepreciationTest.php</file>
       <file>./tests/Unit/AssetModelTest.php</file>
     </testsuite>
-    <testsuite name="Part2FeatureAssetsApi">
-      <file>./tests/Feature/Assets/Api/StoreAssetTest.php</file>
-      <file>./tests/Feature/Assets/Api/AssetWarrantyValidationTest.php</file>
-      <file>./tests/Feature/Assets/Api/EncryptedImeiMacCustomFieldTest.php</file>
-      <file>./tests/Feature/Assets/Api/RestoreAssetTest.php</file>
+    <testsuite name="Part2FeatureAssetsAndModels">
+      <directory>./tests/Feature/Assets</directory>
+      <directory>./tests/Feature/AssetModels</directory>
+      <directory>./tests/Feature/Depreciations</directory>
+      <directory>./tests/Feature/CustomFields</directory>
     </testsuite>
   </testsuites>
   <php>
