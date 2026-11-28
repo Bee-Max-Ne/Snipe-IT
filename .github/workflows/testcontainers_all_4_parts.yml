@@ -1,0 +1,171 @@
+name: Testcontainers All 4 Partitions (Nhom 05 - K16 + PCOV)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-partitions:
+    name: "K16 MySQL 8.0.36 + PCOV (${{ matrix.label }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: part1
+            label: "PV1 - Checkout/Checkin (2312718)"
+            config: phpunit.part1.xml
+            junit_file: junit_report.xml
+            run_infra: "false"
+          - part: part2
+            label: "PV2 - Hardware/Depreciation (2312729)"
+            config: phpunit.part2.xml
+            junit_file: junit_part2_report.xml
+            run_infra: "false"
+          - part: part3
+            label: "PV3 - License/Accessory/K16 (2314506)"
+            config: phpunit.part3.xml
+            junit_file: junit_part3_report.xml
+            run_infra: "true"
+          - part: part4
+            label: "PV4 - RBAC/Policy/FMCS (2312691)"
+            config: phpunit.part4.xml
+            junit_file: junit_part4_report.xml
+            run_infra: "false"
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup PHP 8.2 with PCOV
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: curl, exif, fileinfo, gd, mbstring, pdo_mysql, sodium, zip, pcov
+          coverage: pcov
+          ini-values: memory_limit=1G
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Prepare Laravel Test Environment
+        run: cp .env.testing.example .env
+
+      - name: Install PHP Dependencies
+        run: composer install --no-ansi --no-interaction --no-progress --prefer-dist --no-scripts
+
+      - name: Install Node Dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run K16 Testcontainers + PCOV (${{ matrix.part }})
+        env:
+          TESTCONTAINERS_HOST_OVERRIDE: "127.0.0.1"
+        run: |
+          mkdir -p storage/logs/test-reports
+          set -o pipefail
+          node tests/testcontainers/run.mjs \
+            -c ${{ matrix.config }} \
+            --log-junit storage/logs/test-reports/${{ matrix.junit_file }} \
+            --testdox-html storage/logs/test-reports/testdox.html \
+            --coverage-clover storage/logs/test-reports/coverage_clover.xml \
+            --coverage-html storage/logs/test-reports/coverage-html \
+            --coverage-text | tee storage/logs/test-reports/phpunit_${{ matrix.part }}_execution.log
+
+      - name: Run K16 Infra Crash Cleanup Test (PV3 TC-INF-01)
+        if: ${{ matrix.run_infra == 'true' }}
+        env:
+          TESTCONTAINERS_HOST_OVERRIDE: "127.0.0.1"
+        run: npm run test:k16:infra | tee storage/logs/test-reports/k16_infra_tc_inf_01.log
+
+      - name: Capture Metadata & SHA-256 Checksums
+        if: always()
+        run: |
+          mkdir -p storage/logs/test-reports
+          if [ -f tests/capture_env_metadata.php ]; then
+            php tests/capture_env_metadata.php storage/logs/test-reports/environment_metadata.json
+          fi
+          git log --oneline -n 25 > storage/logs/test-reports/git_commit_evidence.txt
+          (
+            cd storage/logs/test-reports
+            find . -maxdepth 1 -type f ! -name 'checksums.sha256' -printf '%f\n' | sort | xargs -r sha256sum > checksums.sha256
+          )
+
+      - name: Upload Evidence Artifact (${{ matrix.part }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-${{ matrix.part }}
+          path: storage/logs/test-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish-summary:
+    name: Consolidated 4-Partition Summary
+    needs: run-partitions
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download All 4 Evidence Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: evidence-part*
+          path: all-evidence
+
+      - name: Generate Consolidated Markdown Summary
+        run: |
+          python3 - <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob, os, xml.etree.ElementTree as ET
+
+          parts = [
+              ("part1", "PV1 — Checkout/Checkin (2312718)", "junit_report.xml"),
+              ("part2", "PV2 — Hardware/Depreciation (2312729)", "junit_part2_report.xml"),
+              ("part3", "PV3 — License/Accessory/K16 (2314506)", "junit_part3_report.xml"),
+              ("part4", "PV4 — RBAC/Policy/FMCS (2312691)", "junit_part4_report.xml"),
+          ]
+
+          print("## Kết quả Tổng hợp 4 Phân vùng (K16 MySQL 8.0.36 + PCOV)\n")
+          print("| Phân vùng | Tests | Assertions | Failures | Errors | Skipped | PCOV Line Coverage |")
+          print("| :--- | :---: | :---: | :---: | :---: | :---: | :---: |")
+
+          for folder, label, junit_name in parts:
+              base = os.path.join("all-evidence", f"evidence-{folder}")
+              junit_path = os.path.join(base, junit_name)
+              clover_path = os.path.join(base, "coverage_clover.xml")
+
+              tests = assertions = failures = errors = skipped = "N/A"
+              if os.path.exists(junit_path):
+                  root = ET.parse(junit_path).getroot()
+                  ts = root.find("testsuite") or root
+                  tests = ts.attrib.get("tests", "0")
+                  assertions = ts.attrib.get("assertions", "0")
+                  failures = ts.attrib.get("failures", "0")
+                  errors = ts.attrib.get("errors", "0")
+                  skipped = ts.attrib.get("skipped", "0")
+
+              cov = "N/A"
+              if os.path.exists(clover_path):
+                  croot = ET.parse(clover_path).getroot()
+                  metrics = croot.find("./project/metrics")
+                  if metrics is not None:
+                      stmts = int(metrics.attrib.get("statements", "0"))
+                      covered = int(metrics.attrib.get("coveredstatements", "0"))
+                      pct = (covered / stmts * 100.0) if stmts > 0 else 0.0
+                      cov = f"{pct:.2f}% ({covered}/{stmts})"
+
+              print(f"| {label} | {tests} | {assertions} | {failures} | {errors} | {skipped} | {cov} |")
+          PYEOF

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phân vùng 2 – Nguyễn Văn Quốc (2312729)
+  Quản lý Tài sản Phần cứng (Asset), Dòng Model (AssetModel) & Khấu hao (Depreciation).
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         backupGlobals="false"
+         backupStaticProperties="false"
+         bootstrap="bootstrap/autoload.php"
+         cacheDirectory=".phpunit.cache"
+         colors="true"
+         processIsolation="false"
+         stopOnFailure="false"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+>
+  <testsuites>
+    <testsuite name="Part2UnitHardwareDepreciation">
+      <file>./tests/Unit/AssetTest.php</file>
+      <file>./tests/Unit/DepreciationTest.php</file>
+      <file>./tests/Unit/AssetModelTest.php</file>
+    </testsuite>
+    <testsuite name="Part2FeatureAssetsApi">
+      <file>./tests/Feature/Assets/Api/StoreAssetTest.php</file>
+      <file>./tests/Feature/Assets/Api/AssetWarrantyValidationTest.php</file>
+      <file>./tests/Feature/Assets/Api/EncryptedImeiMacCustomFieldTest.php</file>
+      <file>./tests/Feature/Assets/Api/RestoreAssetTest.php</file>
+    </testsuite>
+  </testsuites>
+  <php>
+    <env name="APP_ENV" value="testing"/>
+    <env name="BCRYPT_ROUNDS" value="4"/>
+    <env name="CACHE_DRIVER" value="array"/>
+    <env name="MAIL_FROM_ADDR" value="app@example.com"/>
+    <env name="MAIL_MAILER" value="array"/>
+    <env name="QUEUE_CONNECTION" value="sync"/>
+    <env name="SESSION_DRIVER" value="array"/>
+    <ini name="display_errors" value="true"/>
+    <ini name="memory_limit" value="1G"/>
+  </php>
+  <source>
+    <include>
+      <file>app/Models/Asset.php</file>
+      <file>app/Models/AssetModel.php</file>
+      <file>app/Models/Depreciation.php</file>
+      <file>app/Models/CustomField.php</file>
+      <file>app/Http/Controllers/Api/AssetsController.php</file>
+      <file>app/Http/Controllers/Assets/AssetsController.php</file>
+    </include>
+  </source>
+  <logging>
+    <junit outputFile="storage/logs/test-reports/junit_part2_report.xml"/>
+  </logging>
+</phpunit>
