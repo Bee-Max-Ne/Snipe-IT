@@ -593,20 +593,22 @@ node tests/testcontainers/run.mjs -c phpunit.part4.xml
 
 ---
 
-### 8.3 Thực thi Kiểm thử PHPUnit Cục bộ
-```powershell
-# Chạy toàn bộ các bài kiểm thử:
-php artisan test
+### 8.3 Thực thi Kiểm thử K16 Testcontainers & Cục bộ (4 Phân vùng)
+*(Xem báo cáo tổng hợp đầy đủ tại [`reports/BAO_CAO_TONG_HOP_4_PHAN_VUNG.md`](reports/BAO_CAO_TONG_HOP_4_PHAN_VUNG.md).)*
 
-# Chạy riêng theo từng tệp:
-php artisan test tests/Feature/Checkouts/Api/AssetCheckoutTest.php
-<<<<<<< HEAD
-php artisan test tests/Feature/Licenses/Api/LicenseSeatAllocationLimitTest.php
-php artisan test tests/Unit/UserTest.php
-=======
-php artisan test tests/Unit/Models/LicenseTest.php
-vendor/bin/phpunit -c phpunit.part4.xml
->>>>>>> origin/feature/phan-vung-4-kiem-thu-an-ninh
+```powershell
+# Chạy tuần tự cả 4 phân vùng trên Windows PowerShell (+ PCOV + SHA-256):
+.\export_all_4_parts_evidence.ps1
+
+# Chạy riêng từng phân vùng qua K16 Testcontainers (MySQL 8.0.36):
+$env:PHP_BINARY = (Get-Command php).Source
+node tests/testcontainers/run.mjs -c phpunit.part1.xml   # PV1 (419 tests)
+node tests/testcontainers/run.mjs -c phpunit.part2.xml   # PV2 (638 tests)
+node tests/testcontainers/run.mjs -c phpunit.part3.xml   # PV3 (443 tests)
+node tests/testcontainers/run.mjs -c phpunit.part4.xml   # PV4 (561 tests)
+
+# Chạy test hạ tầng dọn container khi crash (PV3 TC-INF-01):
+npm run test:k16:infra
 ```
 
 ---
