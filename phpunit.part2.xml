@@ -36,6 +36,7 @@
     <env name="SESSION_DRIVER" value="array"/>
     <ini name="display_errors" value="true"/>
     <ini name="memory_limit" value="1G"/>
+    <ini name="max_execution_time" value="0"/>
   </php>
   <source>
     <include>
